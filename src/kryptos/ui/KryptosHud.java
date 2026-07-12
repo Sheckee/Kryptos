@@ -2,8 +2,13 @@ package kryptos.ui;
 
 import arc.Core;
 import arc.func.Boolp;
+import arc.input.KeyCode;
 import arc.math.Interp;
+import arc.math.Mathf;
 import arc.scene.actions.Actions;
+import arc.scene.event.InputEvent;
+import arc.scene.event.InputListener;
+import arc.scene.event.Touchable;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.Tooltip;
 import arc.scene.ui.layout.Table;
@@ -14,6 +19,13 @@ import static mindustry.Vars.ui;
 public class KryptosHud {
     private static final float ICON_SIZE = 52f;
     private static final float BTN_SIZE = 40f;
+    private static final float HANDLE_HEIGHT = 14f;
+    private static final float DRAG_THRESHOLD = 6f;
+
+    private static final String SETTING_X = "kryptos-hud-x";
+    private static final String SETTING_Y = "kryptos-hud-y";
+    private static final float DEFAULT_X = 16f;
+    private static final float DEFAULT_Y = 16f;
 
     public static boolean autoplay = false;
     public static boolean healthBars = false;
@@ -21,13 +33,15 @@ public class KryptosHud {
     public static boolean rangeDisplay = false;
     public static boolean teamResources = false;
 
+    private static Table container;
     private static Table panel;
     private static boolean open = false;
 
     public static void build() {
-        Table root = new Table();
-        root.setFillParent(true);
-        root.bottom().left();
+        container = new Table();
+        container.touchable = Touchable.enabled;
+
+        Table handle = buildDragHandle();
 
         panel = new Table(Styles.black6);
         panel.visible = false;
@@ -42,13 +56,72 @@ public class KryptosHud {
         ImageButton icon = new ImageButton(Core.atlas.drawable("kryptos-icon"), Styles.emptyi);
         icon.resizeImage(ICON_SIZE);
         icon.clicked(KryptosHud::toggle);
+        icon.addListener(new Tooltip(t -> t.background(Styles.black6).add("Kryptos HUD").pad(4f)));
 
-        root.table(t -> {
-            t.add(panel).padRight(8f);
-            t.add(icon).size(ICON_SIZE + 12f);
+        Table row = new Table();
+        row.add(panel).padRight(8f);
+        row.add(icon).size(ICON_SIZE + 12f);
+
+        container.top();
+        container.add(handle).growX().height(HANDLE_HEIGHT).row();
+        container.add(row);
+        container.pack();
+
+        loadPosition();
+
+        ui.hudGroup.addChild(container);
+    }
+
+    private static Table buildDragHandle() {
+        Table handle = new Table(t -> t.background(Styles.black6));
+        handle.touchable = Touchable.enabled;
+
+        final float[] dragOrigin = new float[2]; // touch-down position in stage coords
+        final float[] elemOrigin = new float[2]; // container position at touch-down
+        final boolean[] dragging = {false};
+
+        handle.addListener(new InputListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, KeyCode button) {
+                dragOrigin[0] = event.stageX;
+                dragOrigin[1] = event.stageY;
+                elemOrigin[0] = container.x;
+                elemOrigin[1] = container.y;
+                dragging[0] = false;
+                return true;
+            }
+
+            @Override
+            public void touchDragged(InputEvent event, float x, float y, int pointer) {
+                float dx = event.stageX - dragOrigin[0];
+                float dy = event.stageY - dragOrigin[1];
+                if (!dragging[0] && Mathf.dst(dx, dy) < DRAG_THRESHOLD) return;
+                dragging[0] = true;
+
+                float nx = Mathf.clamp(elemOrigin[0] + dx, 0f, Core.graphics.getWidth() - container.getWidth());
+                float ny = Mathf.clamp(elemOrigin[1] + dy, 0f, Core.graphics.getHeight() - container.getHeight());
+                container.setPosition(nx, ny);
+            }
+
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, KeyCode button) {
+                if (dragging[0]) savePosition();
+                dragging[0] = false;
+            }
         });
 
-        ui.hudGroup.addChild(root);
+        return handle;
+    }
+
+    private static void loadPosition() {
+        float x = Core.settings.getFloat(SETTING_X, DEFAULT_X);
+        float y = Core.settings.getFloat(SETTING_Y, DEFAULT_Y);
+        container.setPosition(x, y);
+    }
+
+    private static void savePosition() {
+        Core.settings.put(SETTING_X, container.x);
+        Core.settings.put(SETTING_Y, container.y);
     }
 
     private static void addToggle(Table into, String iconName, String tooltipText, Boolp getter, arc.func.Boolc setter) {
