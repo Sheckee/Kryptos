@@ -10,6 +10,7 @@ import kryptos.ui.KryptosHud;
 import kryptos.ui.KryptosPathIndicator;
 import kryptos.ui.KryptosRangeDisplay;
 import kryptos.ui.KryptosTimeControl;
+import kryptos.ui.KryptosUpdateChecker;
 import mindustry.Vars;
 import mindustry.game.EventType.ClientLoadEvent;
 import mindustry.mod.Mod;
@@ -27,6 +28,7 @@ public class KryptosMod extends Mod {
             KryptosHealthBar.init();
             KryptosRangeDisplay.init();
             KryptosTimeControl.init();
+            KryptosUpdateChecker.check();
             announceIfUpdated();
         });
     }
