@@ -5,27 +5,18 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
-def mindustryVersion = '159.2'
-def jabelVersion = "93fde537c7"
+def mindustryVersion = 'v159.2'
 
 repositories {
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
 }
 
-configurations {
-    // fixes IDE dependency resolution
-    compileOnly.extendsFrom(annotationProcessor)
-}
-
 dependencies {
-    annotationProcessor "com.github.Anuken:jabel:$jabelVersion"
-
     compileOnly "com.github.Anuken.Arc:arc-core:$mindustryVersion"
     compileOnly "com.github.Anuken.Mindustry:core:$mindustryVersion"
 }
 
-// Compile with Java 17 syntax but target Java 8-compatible bytecode via Jabel
 tasks.withType(JavaCompile) {
     options.encoding = "UTF-8"
     options.compilerArgs += ["-Xlint:-options"]
