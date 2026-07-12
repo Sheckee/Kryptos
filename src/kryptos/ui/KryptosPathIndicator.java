@@ -200,4 +200,4 @@ public class KryptosPathIndicator {
                     Color.white, 0.3f, false, Align.center);
         }
     }
-}
+    }
