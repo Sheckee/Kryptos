@@ -1,9 +1,11 @@
 apply plugin: "java"
 
-sourceCompatibility = JavaVersion.VERSION_17
-targetCompatibility = JavaVersion.VERSION_17
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 
-def mindustryVersion = 'v146'
+def mindustryVersion = '159.2'
 def jabelVersion = "93fde537c7"
 
 repositories {
