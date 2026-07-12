@@ -36,7 +36,7 @@ jobs:
          - name: Read version
            id: version
            run: |
-                Version=$(grep -m1 '^version:' mod.hjson | sed 's/^version:[[:space:]]*//' | tr -d '\r')
+                Version=$(grep -m1 '^version:' mod.hjson | sed 's/^version:[[:space:]]*//' | tr -d '\r"')
                 if [[ "${{ github.ref_name }}" != "main" ]]; then
                 Version="${Version}-beta"
                 fi
