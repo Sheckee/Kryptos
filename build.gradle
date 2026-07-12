@@ -1,0 +1,55 @@
+apply plugin: "java"
+
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
+
+def mindustryVersion = 'v146'
+def jabelVersion = "93fde537c7"
+
+repositories {
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+}
+
+configurations {
+    // fixes IDE dependency resolution
+    compileOnly.extendsFrom(annotationProcessor)
+}
+
+dependencies {
+    annotationProcessor "com.github.Anuken:jabel:$jabelVersion"
+
+    compileOnly "com.github.Anuken.Arc:arc-core:$mindustryVersion"
+    compileOnly "com.github.Anuken.Mindustry:core:$mindustryVersion"
+}
+
+// Compile with Java 17 syntax but target Java 8-compatible bytecode via Jabel
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+    options.compilerArgs += ["-Xlint:-options"]
+}
+
+sourceSets.main.java.srcDirs = ["src"]
+
+jar {
+    archiveFileName = "${project.name}.jar"
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+// Packages the mod into a zip containing the jar + assets, ready to drop
+// into Mindustry's mods folder or upload as a release.
+task deploy(type: Jar) {
+    dependsOn jar
+    archiveFileName = "${project.name}Deploy.jar"
+
+    from { jar.outputs.files.collect { zipTree(it) } }
+    from rootDir
+    include "mod.hjson"
+    include "icon.png"
+    include "sprites/**"
+    include "content/**"
+    include "bundles/**"
+    include "sounds/**"
+}
