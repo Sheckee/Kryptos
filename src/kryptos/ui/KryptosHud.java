@@ -25,7 +25,6 @@ import static mindustry.Vars.ui;
 public class KryptosHud {
     private static final float ICON_SIZE = 52f;
     private static final float BTN_SIZE = 40f;
-    private static final float HANDLE_HEIGHT = 14f;
     private static final float DRAG_THRESHOLD = 6f;
 
     private static final String SETTING_X = "kryptos-hud-x";
@@ -67,8 +66,6 @@ public class KryptosHud {
         container = new Table();
         container.touchable = Touchable.enabled;
 
-        Table handle = buildDragHandle();
-
         panel = new Table(Styles.black6);
         panel.visible = false;
         panel.pack();
@@ -91,12 +88,10 @@ public class KryptosHud {
         row.add(panel).padRight(8f);
         row.add(icon).size(ICON_SIZE + 12f);
 
-        Table teamPanel = KryptosTeamPanel.build();
+        KryptosTeamPanel.build();
 
         container.top();
-        container.add(handle).growX().height(HANDLE_HEIGHT).row();
-        container.add(row).row();
-        container.add(teamPanel).growX().padTop(6f);
+        container.add(row);
         container.pack();
 
         attachContainerDrag();
@@ -104,13 +99,6 @@ public class KryptosHud {
         loadPosition();
 
         ui.hudGroup.addChild(container);
-    }
-
-    /** Purely visual grip strip now — actual dragging is handled by {@link #attachContainerDrag()}. */
-    private static Table buildDragHandle() {
-        Table handle = new Table(t -> t.background(Styles.black6));
-        handle.touchable = Touchable.enabled;
-        return handle;
     }
 
     /**
@@ -208,4 +196,4 @@ public class KryptosHud {
         panel.clearActions();
         panel.actions(Actions.alpha(0f, 0.24f, Interp.pow3In), Actions.visible(false));
     }
-}
+                    }
