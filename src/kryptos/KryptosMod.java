@@ -6,6 +6,7 @@ import arc.util.Log;
 import kryptos.content.KryptosBlocks;
 import kryptos.content.KryptosItems;
 import kryptos.ui.KryptosHud;
+import kryptos.ui.KryptosPathIndicator;
 import mindustry.Vars;
 import mindustry.game.EventType.ClientLoadEvent;
 import mindustry.mod.Mod;
@@ -19,6 +20,7 @@ public class KryptosMod extends Mod {
         Log.info("Kryptos mod loaded.");
         Events.on(ClientLoadEvent.class, e -> {
             KryptosHud.build();
+            KryptosPathIndicator.init();
             announceIfUpdated();
         });
     }
