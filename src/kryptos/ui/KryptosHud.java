@@ -2,6 +2,7 @@ package kryptos.ui;
 
 import arc.Core;
 import arc.func.Boolp;
+import arc.graphics.g2d.TextureRegion;
 import arc.input.KeyCode;
 import arc.math.Interp;
 import arc.math.Mathf;
@@ -9,10 +10,12 @@ import arc.scene.actions.Actions;
 import arc.scene.event.InputEvent;
 import arc.scene.event.InputListener;
 import arc.scene.event.Touchable;
+import arc.scene.style.Drawable;
 import arc.scene.ui.Button;
 import arc.scene.ui.ImageButton;
 import arc.scene.ui.Tooltip;
 import arc.scene.ui.layout.Table;
+import arc.util.Log;
 import mindustry.ui.Styles;
 
 import static mindustry.Vars.ui;
@@ -38,6 +41,21 @@ public class KryptosHud {
     private static Table panel;
     private static boolean open = false;
 
+    /**
+     * Looks up a mod sprite region and logs a clear warning if it wasn't
+     * actually packed into the atlas. If you're seeing "oh no" placeholder
+     * icons in-game, check the log for this warning - it means Kryptos.jar
+     * wasn't built/installed correctly (e.g. the raw source was imported
+     * directly from GitHub instead of the compiled release jar).
+     */
+    private static Drawable safeDrawable(String name) {
+        TextureRegion region = Core.atlas.find(name);
+        if (!Core.atlas.isFound(region)) {
+            Log.warn("[Kryptos] Sprite '@' not found in atlas! Make sure you installed the built Kryptos.jar from Releases, not the raw source folder/zip.", name);
+        }
+        return Core.atlas.drawable(name);
+    }
+
     public static void build() {
         container = new Table();
         container.touchable = Touchable.enabled;
@@ -54,7 +72,7 @@ public class KryptosHud {
         addToggle(panel, "kryptos-icon-range", "Range Display", () -> rangeDisplay, b -> rangeDisplay = b);
         addToggle(panel, "kryptos-icon-team", "Team Resources", () -> teamResources, b -> teamResources = b);
 
-        ImageButton icon = new ImageButton(Core.atlas.drawable("kryptos-icon"), Styles.emptyi);
+        ImageButton icon = new ImageButton(safeDrawable("kryptos-icon"), Styles.emptyi);
         icon.resizeImage(ICON_SIZE);
         icon.clicked(KryptosHud::toggle);
         icon.addListener(new Tooltip(t -> t.background(Styles.black6).add("Kryptos HUD").pad(4f)));
@@ -141,7 +159,7 @@ public class KryptosHud {
     }
 
     private static void addToggle(Table into, String iconName, String tooltipText, Boolp getter, arc.func.Boolc setter) {
-        ImageButton btn = new ImageButton(Core.atlas.drawable(iconName), Styles.emptyi);
+        ImageButton btn = new ImageButton(safeDrawable(iconName), Styles.emptyi);
         btn.resizeImage(BTN_SIZE * 0.5f);
         btn.update(() -> btn.setChecked(getter.get()));
         btn.clicked(() -> setter.get(!getter.get()));
