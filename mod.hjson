@@ -1,7 +1,7 @@
 name: "kryptos"
 displayName: "Kryptos"
-author: "SIJ"
-description: "A sci-fi/tech themed content mod for Mindustry. Cold, precise, high-tech aesthetic — clean geometry, cyan energy accents, and dark alloy hulls."
-version: "0.1.2"
+author: "[#7b8494]SIJ[]"
+description: "[#8ff5ff]KRYPTOS[] [#7b8494]— hidden by d>
+version: "0.1.8"
 minGameVersion: "159.2"
 main: "kryptos.KryptosMod"
