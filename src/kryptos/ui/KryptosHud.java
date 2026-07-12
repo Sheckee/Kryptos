@@ -23,8 +23,8 @@ import mindustry.ui.Styles;
 import static mindustry.Vars.ui;
 
 public class KryptosHud {
-    private static final float ICON_SIZE = 52f;
-    private static final float BTN_SIZE = 40f;
+    private static final float ICON_SIZE = 70f;
+    private static final float BTN_SIZE = 56f;
     private static final float DRAG_THRESHOLD = 6f;
 
     private static final String SETTING_X = "kryptos-hud-x";
@@ -163,7 +163,7 @@ public class KryptosHud {
         Image[] iconRef = new Image[1];
 
         Button btn = into.button(t -> {
-            iconRef[0] = t.image(safeDrawable(iconName)).size(BTN_SIZE * 0.5f).get();
+            iconRef[0] = t.image(safeDrawable(iconName)).size(BTN_SIZE * 0.8f).get();
         }, Styles.emptyi, () -> setter.get(!getter.get())).size(BTN_SIZE).pad(4f).get();
 
         btn.update(() -> {
