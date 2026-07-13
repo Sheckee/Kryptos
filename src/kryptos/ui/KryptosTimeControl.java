@@ -64,10 +64,22 @@ public class KryptosTimeControl extends Table {
         Time.setDeltaProvider(() -> Core.graphics.getDeltaTime() * 60f);
     }
 
+    private boolean wasEnabled = false;
+
     private void smoothUpdate() {
         if (!KryptosHud.timeControl) {
+            // The toggle was just switched off: the delta provider set below
+            // stays active forever otherwise, since nothing else ever resets
+            // it -- the game would keep running at whatever multiplier was
+            // last active (e.g. stuck at 4x) even after disabling the panel.
+            if (wasEnabled) {
+                resetSpeed();
+                wasEnabled = false;
+            }
             return;
         }
+        wasEnabled = true;
+
         current = Mathf.lerpDelta(current, target, SMOOTHING);
         if (Math.abs(current - target) < 0.001f) {
             current = target;
