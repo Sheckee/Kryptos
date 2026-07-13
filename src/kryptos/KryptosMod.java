@@ -5,6 +5,7 @@ import arc.Events;
 import arc.util.Log;
 import kryptos.content.KryptosBlocks;
 import kryptos.content.KryptosItems;
+import kryptos.content.KryptosOreInjector;
 import kryptos.ui.KryptosHealthBar;
 import kryptos.ui.KryptosHud;
 import kryptos.ui.KryptosPathIndicator;
@@ -29,6 +30,7 @@ public class KryptosMod extends Mod {
             KryptosRangeDisplay.init();
             KryptosTimeControl.init();
             KryptosUpdateChecker.check();
+            KryptosOreInjector.init();
             announceIfUpdated();
         });
     }
