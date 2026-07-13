@@ -4,10 +4,10 @@ import arc.graphics.Color;
 import mindustry.type.Item;
 
 public class KryptosItems {
-    public static Item voidsteel;
+    public static Item customOre;
 
     public static void load() {
-        voidsteel = new Item("voidsteel", Color.valueOf("7b8494")) {{
+        customOre = new Item("kryptos-ore", Color.valueOf("7b8494")) {{
             hardness = 4;
             cost = 1.1f;
             charge = 0f;
