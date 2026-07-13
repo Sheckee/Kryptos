@@ -26,7 +26,15 @@ import static mindustry.Vars.world;
 public class KryptosOreInjector {
     private static final String FLAG_PREFIX = "kryptos-ore-injected-";
     private static final float CHANCE = 0.03f;
-    private static final float MIN_SPAWN_DIST = 45f * tilesize;
+    /**
+     * Base spawn-safe exclusion radius in tiles, around the core. This is
+     * only a starting point -- {@link #spawnExclusionDist()} shrinks it on
+     * smaller sectors so the excluded zone can never swallow the whole map
+     * (many early Serpulo/Erekir sectors are well under 100 tiles across,
+     * and a flat 45-tile radius there leaves nothing left to seed ore on,
+     * which is why voidsteel was never showing up on those maps).
+     */
+    private static final float MIN_SPAWN_DIST_TILES = 45f;
 
     public static void init() {
         Events.on(WorldLoadEvent.class, e -> {
@@ -48,6 +56,18 @@ public class KryptosOreInjector {
         });
     }
 
+    /**
+     * The full exclusion zone (diameter = 2x this value) must never eat the
+     * whole map, or no tile ever passes the distance check and no ore ever
+     * spawns. Caps the radius at 30% of the shorter map dimension so small
+     * sectors still keep plenty of eligible tiles outside the safe zone.
+     */
+    private static float spawnExclusionDist() {
+        int shorterSide = Math.min(world.width(), world.height());
+        float cap = shorterSide * 0.3f * tilesize;
+        return Math.min(MIN_SPAWN_DIST_TILES * tilesize, cap);
+    }
+
     private static void inject(int sectorId) {
         if (KryptosBlocks.oreVoidsteel == null) {
             return;
@@ -62,6 +82,8 @@ public class KryptosOreInjector {
             spawnY = core.y;
         }
 
+        float minSpawnDist = spawnExclusionDist();
+
         for (int x = 0; x < world.width(); x++) {
             for (int y = 0; y < world.height(); y++) {
                 Tile tile = world.tile(x, y);
@@ -74,7 +96,7 @@ public class KryptosOreInjector {
                 if (spawnX >= 0) {
                     float dx = tile.worldx() - spawnX;
                     float dy = tile.worldy() - spawnY;
-                    if (dx * dx + dy * dy < MIN_SPAWN_DIST * MIN_SPAWN_DIST) {
+                    if (dx * dx + dy * dy < minSpawnDist * minSpawnDist) {
                         continue;
                     }
                 }
