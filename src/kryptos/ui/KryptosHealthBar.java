@@ -5,7 +5,6 @@ import arc.Events;
 import arc.graphics.Color;
 import arc.graphics.g2d.Draw;
 import arc.graphics.g2d.TextureRegion;
-import arc.math.geom.Rect;
 import mindustry.Vars;
 import mindustry.game.EventType.Trigger;
 import mindustry.gen.Building;
@@ -13,27 +12,16 @@ import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.graphics.Layer;
 import mindustry.graphics.Pal;
-import mindustry.type.Item;
-import mindustry.world.Tile;
-import mindustry.world.blocks.environment.OreBlock;
 
-import static mindustry.Vars.player;
-import static mindustry.Vars.renderer;
 import static mindustry.Vars.state;
-import static mindustry.Vars.world;
 
 /**
- * Draws HP (and shield) bars above damaged units and buildings, and marks
- * visible ore tiles with a small item icon under the tile so resources are
- * readable without opening the map overlay.
+ * Draws HP (and shield) bars above damaged units and buildings.
  */
 public class KryptosHealthBar {
     private static final float BAR_SCALE = 1f;
-    private static final float ORE_ZOOM_THRESHOLD = 2.6f;
-    private static final float ORE_ICON_SIZE = 6f;
 
     private static TextureRegion barRegion;
-    private static final Rect viewBounds = new Rect();
 
     public static void init() {
         Events.run(Trigger.draw, KryptosHealthBar::draw);
@@ -48,7 +36,6 @@ public class KryptosHealthBar {
             barRegion = Core.atlas.white();
         }
 
-        Core.camera.bounds(viewBounds);
         float cx = Core.camera.position.x;
         float cy = Core.camera.position.y;
         float cw = Core.camera.width;
@@ -59,8 +46,6 @@ public class KryptosHealthBar {
         Groups.unit.intersect(cx - cw / 2f, cy - ch / 2f, cw, ch, KryptosHealthBar::drawUnit);
 
         Vars.indexer.eachBlock(null, cx, cy, Math.max(cw, ch), b -> true, KryptosHealthBar::drawBuilding);
-
-        drawOreLabels();
 
         Draw.reset();
     }
@@ -140,41 +125,4 @@ public class KryptosHealthBar {
         Draw.reset();
     }
 
-    /** Marks ore tiles in view with a small icon under the tile ("sa baba"). */
-    private static void drawOreLabels() {
-        float zoom = renderer.getScale();
-        if (zoom < ORE_ZOOM_THRESHOLD) {
-            return;
-        }
-
-        int x0 = Math.max(0, (int) (viewBounds.x / Vars.tilesize) - 1);
-        int y0 = Math.max(0, (int) (viewBounds.y / Vars.tilesize) - 1);
-        int x1 = Math.min(world.width() - 1, (int) ((viewBounds.x + viewBounds.width) / Vars.tilesize) + 1);
-        int y1 = Math.min(world.height() - 1, (int) ((viewBounds.y + viewBounds.height) / Vars.tilesize) + 1);
-
-        for (int tx = x0; tx <= x1; tx++) {
-            for (int ty = y0; ty <= y1; ty++) {
-                Tile tile = world.tile(tx, ty);
-                if (tile == null || !(tile.overlay() instanceof OreBlock ore)) {
-                    continue;
-                }
-                Item item = ore.itemDrop;
-                if (item == null) {
-                    continue;
-                }
-
-                TextureRegion icon = item.uiIcon;
-                if (icon == null || !icon.found()) {
-                    continue;
-                }
-
-                float ix = tile.worldx();
-                float iy = tile.worldy() - Vars.tilesize / 2f - ORE_ICON_SIZE * 0.5f;
-
-                Draw.color(Color.white, 0.85f);
-                Draw.rect(icon, ix, iy, ORE_ICON_SIZE, ORE_ICON_SIZE);
-            }
-        }
-        Draw.reset();
-    }
 }
