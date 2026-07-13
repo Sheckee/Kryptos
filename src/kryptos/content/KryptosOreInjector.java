@@ -1,49 +1,26 @@
 package kryptos.content;
 
-import arc.Core;
 import arc.Events;
-import mindustry.content.Planets;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.OreBlock;
 
-import static mindustry.Vars.state;
 import static mindustry.Vars.world;
 
 /**
- * Converts every existing ore tile in a sector (copper, lead, titanium,
- * scrap, thorium -- whatever the vanilla generator placed) into the
- * customized Kryptos voidsteel ore. A per-sector flag (saved in settings,
- * not the map) makes sure it only runs once each -- this also
- * retroactively covers sectors you already visited before this existed,
- * since it just checks "have I converted this sector id yet?" rather than
- * "is this a brand new sector?".
+ * Converts every existing ore tile on the loaded map (copper, lead,
+ * titanium, scrap, thorium -- whatever the generator placed) into the
+ * customized Kryptos ore. Runs on every map load, campaign sector or
+ * custom/skirmish map alike, so the ore is always visible in-game
+ * regardless of how the map was started.
  */
 public class KryptosOreInjector {
-    private static final String FLAG_PREFIX = "kryptos-ore-injected-v2-";
-
     public static void init() {
-        Events.on(WorldLoadEvent.class, e -> {
-            var sector = state.rules.sector;
-            if (sector == null || sector.planet == null) {
-                return;
-            }
-            if (sector.planet != Planets.serpulo && sector.planet != Planets.erekir) {
-                return;
-            }
-
-            String flag = FLAG_PREFIX + sector.planet.name + "-" + sector.id;
-            if (Core.settings.getBool(flag, false)) {
-                return;
-            }
-
-            convertAllOre();
-            Core.settings.put(flag, true);
-        });
+        Events.on(WorldLoadEvent.class, e -> convertAllOre());
     }
 
     private static void convertAllOre() {
-        if (KryptosBlocks.oreVoidsteel == null) {
+        if (KryptosBlocks.oreCustom == null) {
             return;
         }
 
@@ -54,8 +31,8 @@ public class KryptosOreInjector {
                     continue;
                 }
 
-                if (tile.overlay() instanceof OreBlock && tile.overlay() != KryptosBlocks.oreVoidsteel) {
-                    tile.setOverlay(KryptosBlocks.oreVoidsteel);
+                if (tile.overlay() instanceof OreBlock && tile.overlay() != KryptosBlocks.oreCustom) {
+                    tile.setOverlay(KryptosBlocks.oreCustom);
                 }
             }
         }
