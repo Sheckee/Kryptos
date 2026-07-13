@@ -7,6 +7,7 @@ public class KryptosBlocks {
 
     public static void load() {
         oreVoidsteel = new OreBlock("ore-voidsteel", KryptosItems.voidsteel) {{
+            oreDefault = true;
             oreThreshold = 0.82f;
             oreScale = 24f;
             variants = 3;
