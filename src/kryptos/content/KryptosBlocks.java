@@ -3,10 +3,10 @@ package kryptos.content;
 import mindustry.world.blocks.environment.OreBlock;
 
 public class KryptosBlocks {
-    public static OreBlock oreVoidsteel;
+    public static OreBlock oreCustom;
 
     public static void load() {
-        oreVoidsteel = new OreBlock("ore-voidsteel", KryptosItems.voidsteel) {{
+        oreCustom = new OreBlock("ore-kryptos", KryptosItems.customOre) {{
             oreDefault = true;
             oreThreshold = 0.82f;
             oreScale = 24f;
