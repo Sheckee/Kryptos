@@ -16,7 +16,13 @@ import static mindustry.Vars.world;
  */
 public class KryptosOreInjector {
     public static void init() {
-        Events.on(WorldLoadEvent.class, e -> convertAllOre());
+-    Events.on(WorldLoadEvent.class, e -> convertAllOre());
++    Events.on(WorldLoadEvent.class, e -> {
++        convertAllOre();
++        for (int i = 1; i <= RETRY_SWEEPS; i++) {
++            Timer.schedule(KryptosOreInjector::convertAllOre, SWEEP_INTERVAL_SECONDS * i);
++        }
++    });
     }
 
     private static void convertAllOre() {
