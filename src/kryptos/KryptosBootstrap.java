@@ -1,0 +1,46 @@
+package kryptos;
+
+import arc.util.Log;
+import kryptos.content.KryptosOreInjector;
+import kryptos.ui.KryptosHealthBar;
+import kryptos.ui.KryptosHud;
+import kryptos.ui.KryptosPathIndicator;
+import kryptos.ui.KryptosRangeDisplay;
+import kryptos.ui.KryptosTheme;
+import kryptos.ui.KryptosTimeControl;
+
+public final class KryptosBootstrap {
+
+    private static boolean initialized = false;
+
+    private KryptosBootstrap() {
+        // Utility class
+    }
+
+    public static void init() {
+
+        if (initialized) return;
+        initialized = true;
+
+        Log.info("Initializing Kryptos systems...");
+
+        // ===========================
+        // UI
+        // ===========================
+
+        KryptosTheme.apply();
+        KryptosHud.build();
+        KryptosPathIndicator.init();
+        KryptosHealthBar.init();
+        KryptosRangeDisplay.init();
+        KryptosTimeControl.init();
+
+        // ===========================
+        // World
+        // ===========================
+
+        KryptosOreInjector.init();
+
+        Log.info("Kryptos systems initialized.");
+    }
+}
