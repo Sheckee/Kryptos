@@ -8,7 +8,7 @@ public class KryptosItems {
 
     public static void load() {
         customOre = new Item("kryptos-ore", Color.valueOf("7b8494")) {{
-            hardness = 4;
+            hardness = 1;
             cost = 1.1f;
             charge = 0f;
             explosiveness = 0f;
