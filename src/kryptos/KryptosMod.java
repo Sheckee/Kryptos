@@ -5,13 +5,6 @@ import arc.Events;
 import arc.util.Log;
 import kryptos.content.KryptosBlocks;
 import kryptos.content.KryptosItems;
-import kryptos.content.KryptosOreInjector;
-import kryptos.ui.KryptosHealthBar;
-import kryptos.ui.KryptosHud;
-import kryptos.ui.KryptosPathIndicator;
-import kryptos.ui.KryptosRangeDisplay;
-import kryptos.ui.KryptosTheme;
-import kryptos.ui.KryptosTimeControl;
 import kryptos.ui.KryptosUpdateChecker;
 import mindustry.Vars;
 import mindustry.game.EventType.ClientLoadEvent;
@@ -24,28 +17,17 @@ public class KryptosMod extends Mod {
     private static final float UPDATE_TOAST_DURATION = 5f;
 
     public KryptosMod() {
-        Log.info("Loading Kryptos Mod...");
+    Log.info("Loading Kryptos Mod...");
 
-        // Initialize systems after the game finishes loading.
-        Events.on(ClientLoadEvent.class, e -> {
+    Events.on(ClientLoadEvent.class, e -> {
 
-            // UI
-            KryptosTheme.apply();
-            KryptosHud.build();
-            KryptosPathIndicator.init();
-            KryptosHealthBar.init();
-            KryptosRangeDisplay.init();
-            KryptosTimeControl.init();
+        KryptosBootstrap.init();
 
-            // World systems
-            KryptosOreInjector.init();
+        KryptosUpdateChecker.check();
+        announceIfUpdated();
 
-            // Version checker
-            KryptosUpdateChecker.check();
-            announceIfUpdated();
-
-            Log.info("Kryptos initialization complete.");
-        });
+        Log.info("Kryptos initialization complete.");
+    });
     }
 
     @Override
