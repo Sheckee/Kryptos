@@ -5,6 +5,7 @@ import arc.Events;
 import arc.util.Log;
 import kryptos.content.KryptosBlocks;
 import kryptos.content.KryptosItems;
+import kryptos.content.KryptosOreInjector;
 import kryptos.ui.KryptosHealthBar;
 import kryptos.ui.KryptosHud;
 import kryptos.ui.KryptosPathIndicator;
@@ -13,12 +14,9 @@ import kryptos.ui.KryptosTheme;
 import kryptos.ui.KryptosTimeControl;
 import kryptos.ui.KryptosUpdateChecker;
 import mindustry.Vars;
-import mindustry.content.Blocks;
 import mindustry.game.EventType.ClientLoadEvent;
-import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.mod.Mod;
 import mindustry.mod.Mods.LoadedMod;
-import mindustry.world.Tile;
 
 public class KryptosMod extends Mod {
 
@@ -26,29 +24,38 @@ public class KryptosMod extends Mod {
     private static final float UPDATE_TOAST_DURATION = 5f;
 
     public KryptosMod() {
-        Log.info("Kryptos mod loaded.");
+        Log.info("Loading Kryptos Mod...");
 
+        // Initialize systems after the game finishes loading.
         Events.on(ClientLoadEvent.class, e -> {
+
+            // UI
             KryptosTheme.apply();
             KryptosHud.build();
             KryptosPathIndicator.init();
             KryptosHealthBar.init();
             KryptosRangeDisplay.init();
             KryptosTimeControl.init();
+
+            // World systems
+            KryptosOreInjector.init();
+
+            // Version checker
             KryptosUpdateChecker.check();
             announceIfUpdated();
-        });
 
-        // Repair old saves containing ore-kryptos
-        Events.on(WorldLoadEvent.class, e -> {
-            repairOldKryptosOre();
+            Log.info("Kryptos initialization complete.");
         });
     }
 
     @Override
     public void loadContent() {
+        Log.info("Loading Kryptos content...");
+
         KryptosItems.load();
         KryptosBlocks.load();
+
+        Log.info("Kryptos content loaded.");
     }
 
     private void announceIfUpdated() {
@@ -63,33 +70,11 @@ public class KryptosMod extends Mod {
 
         if (lastSeenVersion != null && !lastSeenVersion.equals(currentVersion)) {
             Vars.ui.showInfoToast(
-                    "[accent]Kryptos[] updated to v" + currentVersion + "!",
-                    UPDATE_TOAST_DURATION
+                "[accent]Kryptos[] updated to v" + currentVersion + "!",
+                UPDATE_TOAST_DURATION
             );
         }
 
         Core.settings.put(SETTING_LAST_VERSION, currentVersion);
-    }
-
-    /**
-     * Converts old Kryptos ore to Copper so old saves remain playable.
-     */
-    private void repairOldKryptosOre() {
-        if (Vars.world == null) return;
-
-        int repaired = 0;
-
-        for (Tile tile : Vars.world.tiles) {
-            if (tile == null) continue;
-
-            if (tile.overlay() == KryptosBlocks.oreCustom) {
-                tile.setOverlay(Blocks.oreCopper);
-                repaired++;
-            }
-        }
-
-        if (repaired > 0) {
-            Log.info("Repaired @ old Kryptos ore tiles.", repaired);
-        }
     }
 }
