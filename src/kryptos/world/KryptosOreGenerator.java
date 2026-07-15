@@ -98,6 +98,16 @@ public final class KryptosOreGenerator {
     private static final double EDGE_SCALE = 1.0 / 8.0;
     private static final double EDGE_PERTURBATION = 0.35;
 
+    // ---- Interior density falloff: keeps the core solid, thins the ring ----
+    // near effectiveRadius instead of every accepted tile being placed
+    // unconditionally. density = 1 - normalized^2 is 1.0 at the seed
+    // center and 0.0 at dist == seed.radius; the noise term only ever
+    // contributes +/-0.25, so at FILL_THRESHOLD = 0.0 no tile with
+    // normalized <= ~0.866 (dist <= ~0.866 * radius, ~75% of the patch's
+    // area) can ever fail this check regardless of the noise sample --
+    // thinning is confined to the outer ring by construction.
+    private static final double FILL_THRESHOLD = 0.0;
+
     // ---- Seed lattice: candidate deposit centers ----
     private static final int GRID_SPACING = 36;
     private static final double JITTER_FRACTION = 0.6;
@@ -469,10 +479,11 @@ public final class KryptosOreGenerator {
      *
      * Diagnostic-only: tallies why each candidate offset tile did *not*
      * end up placed (existing OreBlock, invalid floor, outside the
-     * noise-perturbed effective radius) alongside the accepted count, and
-     * logs the seed's x/y/radius/placed summary, plus per-floor-name
-     * histograms of rejected vs. accepted tiles. None of these counters
-     * feed back into the placement decision.
+     * noise-perturbed effective radius, or rejected by the interior
+     * density falloff) alongside the accepted count, and logs the seed's
+     * x/y/radius/placed summary, plus per-floor-name histograms of
+     * rejected vs. accepted tiles. None of these counters feed back into
+     * the placement decision.
      */
     private static int createPatch(KryptosNoise noise, Seed seed, OreBlock ore, Map<String, Integer> rejectedFloorHistogram, Map<String, Integer> acceptedFloorHistogram) {
         int reach = (int) Math.ceil(seed.radius * (1 + EDGE_PERTURBATION));
@@ -491,6 +502,7 @@ public final class KryptosOreGenerator {
         int skippedOreExists = 0;
         int skippedInvalidFloor = 0;
         int skippedOutsideRadius = 0;
+        int skippedDensity = 0;
 
         for (int[] offset : offsets) {
             if (placed >= MAX_PATCH_TILES) break;
@@ -515,6 +527,16 @@ public final class KryptosOreGenerator {
             double effectiveRadius = seed.radius + edgeNoise * seed.radius * EDGE_PERTURBATION;
 
             if (dist < effectiveRadius) {
+                double normalized = dist / seed.radius;
+                double densityFalloff = 1.0 - normalized * normalized;
+                double fill = densityFalloff
+                    + noise.octaves(tx, ty, EDGE_OCTAVES, EDGE_PERSISTENCE, EDGE_SCALE * 3) * 0.25;
+
+                if (fill < FILL_THRESHOLD) {
+                    skippedDensity++;
+                    continue;
+                }
+
                 tile.setOverlay(ore);
                 placed++;
                 incrementHistogram(acceptedFloorHistogram, tile.floor().name);
@@ -524,8 +546,8 @@ public final class KryptosOreGenerator {
         }
 
         Log.info("[Kryptos] Seed @,@ radius=@ placed=@", seed.x, seed.y, seed.radius, placed);
-        Log.info("[Kryptos]   skippedOreExists=@ skippedInvalidFloor=@ skippedOutsideRadius=@ accepted=@",
-            skippedOreExists, skippedInvalidFloor, skippedOutsideRadius, placed);
+        Log.info("[Kryptos]   skippedOreExists=@ skippedInvalidFloor=@ skippedOutsideRadius=@ skippedDensity=@ accepted=@",
+            skippedOreExists, skippedInvalidFloor, skippedOutsideRadius, skippedDensity, placed);
 
         return placed;
     }
@@ -557,4 +579,4 @@ public final class KryptosOreGenerator {
             this.radius = radius;
         }
     }
-                                                                   }
+            }
