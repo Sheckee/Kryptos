@@ -122,7 +122,26 @@ public final class KryptosOreGenerator {
     // the in-game screenshots showed. 18 tiles is wide enough to visibly
     // read as bare rock between deposits.
     private static final float MIN_GAP_BETWEEN_PATCHES = 18f;
+    // Hard upper bound on *placed* ore tiles per patch -- this is what
+    // keeps deposit size, and therefore world balance, predictable. It
+    // used to also double as the loop's early-exit condition, which was
+    // the bug: because offsets are visited nearest-first, the loop hit
+    // this cap while still inside the interior, where the density gate
+    // (see FILL_THRESHOLD below) rarely rejects anything -- so the gate
+    // never got to run on the outer ring where it actually does work.
+    // createPatch() now evaluates every visited offset against validity,
+    // radius, and the density gate first, and only afterwards truncates
+    // the resulting nearest-first qualifying list down to this many
+    // tiles. So this constant still bounds deposit size exactly as
+    // before; it just no longer decides when to stop *looking*.
     private static final int MAX_PATCH_TILES = 85;
+    // Separate, purely-performance safety cap on how many offsets we'll
+    // evaluate at all, sized comfortably above the largest offset list we
+    // can produce today (~1017 candidates, for a COMMON-density patch at
+    // maxRadius=13: reach = ceil(13 * 1.35) = 18, pi*18^2 ~ 1017), so in
+    // practice every candidate gets evaluated and this never binds under
+    // current sector rules.
+    private static final int MAX_VISITED_OFFSETS = 2000;
 
     // Salts so jitter-x, jitter-y, and radius don't all collapse onto the
     // same value when hashed from the same (x, y) lattice point.
@@ -498,14 +517,26 @@ public final class KryptosOreGenerator {
         }
         offsets.sort((a, b) -> Integer.compare(a[0] * a[0] + a[1] * a[1], b[0] * b[0] + b[1] * b[1]));
 
-        int placed = 0;
+        int visited = 0;
         int skippedOreExists = 0;
         int skippedInvalidFloor = 0;
         int skippedOutsideRadius = 0;
         int skippedDensity = 0;
+        double maxNormalizedReached = 0.0;
+
+        // Pass 1: evaluate every visited offset against validity, radius,
+        // and the density gate, independent of any placement cap. Tiles
+        // that pass everything go into `qualifying`, which stays in the
+        // same nearest-first order as `offsets` -- this is what makes the
+        // gate reachable, since a tile far out at normalized ~0.9 is
+        // judged on its own merits instead of the loop having already
+        // stopped looking.
+        List<Tile> qualifying = new ArrayList<>();
+        List<Double> qualifyingNormalized = new ArrayList<>();
 
         for (int[] offset : offsets) {
-            if (placed >= MAX_PATCH_TILES) break;
+            if (visited >= MAX_VISITED_OFFSETS) break;
+            visited++;
 
             int tx = seed.x + offset[0];
             int ty = seed.y + offset[1];
@@ -523,11 +554,15 @@ public final class KryptosOreGenerator {
             }
 
             double dist = Math.sqrt(offset[0] * offset[0] + offset[1] * offset[1]);
+            double normalized = dist / seed.radius;
+            if (normalized > maxNormalizedReached) {
+                maxNormalizedReached = normalized;
+            }
+
             double edgeNoise = noise.octaves(tx, ty, EDGE_OCTAVES, EDGE_PERSISTENCE, EDGE_SCALE);
             double effectiveRadius = seed.radius + edgeNoise * seed.radius * EDGE_PERTURBATION;
 
             if (dist < effectiveRadius) {
-                double normalized = dist / seed.radius;
                 double densityFalloff = 1.0 - normalized * normalized;
                 double fill = densityFalloff
                     + noise.octaves(tx, ty, EDGE_OCTAVES, EDGE_PERSISTENCE, EDGE_SCALE * 3) * 0.25;
@@ -537,17 +572,61 @@ public final class KryptosOreGenerator {
                     continue;
                 }
 
-                tile.setOverlay(ore);
-                placed++;
-                incrementHistogram(acceptedFloorHistogram, tile.floor().name);
+                qualifying.add(tile);
+                qualifyingNormalized.add(normalized);
             } else {
                 skippedOutsideRadius++;
             }
         }
 
+        // Snapshot the qualifying set exactly as it stood before the cap
+        // is applied, and bucket it by normalized radius. This is the
+        // statistic that answers "is the density gate actually shaping
+        // the interior/edge split, or is the cap doing all the work?" --
+        // if qualifying tiles are overwhelmingly interior (buckets 0-0.75)
+        // and the cap removes only the [0.75, 1.0) / overflow buckets,
+        // the gate is mostly invisible and the falloff formula itself
+        // needs retuning rather than the pipeline. Bucket 4 (>=1.0)
+        // exists because EDGE_PERTURBATION lets effectiveRadius exceed
+        // seed.radius, so a tile can still be inside the perturbed
+        // boundary with normalized > 1.0.
+        int qualifyingBeforeCap = qualifying.size();
+        int[] qualifyingRadiusHistogram = new int[5];
+        for (double n : qualifyingNormalized) {
+            int bucket;
+            if (n < 0.25) bucket = 0;
+            else if (n < 0.5) bucket = 1;
+            else if (n < 0.75) bucket = 2;
+            else if (n < 1.0) bucket = 3;
+            else bucket = 4;
+            qualifyingRadiusHistogram[bucket]++;
+        }
+
+        // Pass 2: place ore on the nearest-first qualifying tiles, up to
+        // the hard deposit-size cap. Everything beyond MAX_PATCH_TILES in
+        // `qualifying` is farther from the seed than everything placed,
+        // by construction, so this truncation is still "keep the dense
+        // center, trim the edge" -- it's just deciding among tiles that
+        // already survived the density gate, instead of deciding before
+        // the gate ever ran.
+        int placed = Math.min(qualifying.size(), MAX_PATCH_TILES);
+        for (int i = 0; i < placed; i++) {
+            Tile tile = qualifying.get(i);
+            tile.setOverlay(ore);
+            incrementHistogram(acceptedFloorHistogram, tile.floor().name);
+        }
+        int skippedCapped = qualifyingBeforeCap - placed;
+
         Log.info("[Kryptos] Seed @,@ radius=@ placed=@", seed.x, seed.y, seed.radius, placed);
-        Log.info("[Kryptos]   skippedOreExists=@ skippedInvalidFloor=@ skippedOutsideRadius=@ skippedDensity=@ accepted=@",
-            skippedOreExists, skippedInvalidFloor, skippedOutsideRadius, skippedDensity, placed);
+        Log.info("[Kryptos]   skippedOreExists=@ skippedInvalidFloor=@ skippedOutsideRadius=@ skippedDensity=@ skippedCapped=@ accepted=@",
+            skippedOreExists, skippedInvalidFloor, skippedOutsideRadius, skippedDensity, skippedCapped, placed);
+        Log.info("[Kryptos]   visitedOffsets=@/@ maxNormalizedDistReached=@",
+            visited, offsets.size(), String.format("%.3f", maxNormalizedReached));
+        Log.info("[Kryptos]   qualifyingTotal=@ qualifyingBeforeCap=@ removedByCap=@",
+            qualifying.size(), qualifyingBeforeCap, skippedCapped);
+        Log.info("[Kryptos]   qualifyingByNormalizedRadius: [0,.25)=@ [.25,.5)=@ [.5,.75)=@ [.75,1.0)=@ [>=1.0)=@",
+            qualifyingRadiusHistogram[0], qualifyingRadiusHistogram[1], qualifyingRadiusHistogram[2],
+            qualifyingRadiusHistogram[3], qualifyingRadiusHistogram[4]);
 
         return placed;
     }
@@ -579,4 +658,4 @@ public final class KryptosOreGenerator {
             this.radius = radius;
         }
     }
-            }
+    }
