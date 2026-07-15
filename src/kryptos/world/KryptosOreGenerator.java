@@ -3,6 +3,7 @@ package kryptos.world;
 import arc.Events;
 import kryptos.content.KryptosBlocks;
 import kryptos.util.KryptosNoise;
+import mindustry.content.Blocks;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.OreBlock;
@@ -112,6 +113,33 @@ public final class KryptosOreGenerator {
     private static final long SALT_RADIUS = 0x3L;
 
     /**
+     * TEMPORARY MIGRATION SWITCH -- must be {@code false} before release.
+     *
+     * Existing Campaign sectors already have Kryptos Ore baked into their
+     * saved tile data from earlier builds of this generator. Since
+     * {@code createPatch} only ever writes to tiles with no existing ore
+     * overlay, loading one of those sectors again with a fixed algorithm
+     * places approximately zero new ore -- every tile the new algorithm
+     * would want is already "occupied" by ore from the old run, so there
+     * is no way to visually verify a generator change on them.
+     * <p>
+     * With this set to {@code true}, {@link #generate()} first strips ONLY
+     * {@link KryptosBlocks#oreCustom} overlays (by reference, not
+     * {@code instanceof OreBlock} -- see {@link #clearPreviousKryptosOre(OreBlock)})
+     * from the currently loaded sector, then immediately runs the normal
+     * pipeline as if the sector had never had Kryptos Ore on it. Copper,
+     * Lead, Coal, Titanium, Thorium, Scrap, and any other ore are never
+     * touched by this, regardless of this flag.
+     * <p>
+     * This adds one extra full-tile-array scan on load, which is why it's
+     * gated behind a flag instead of always running -- it exists purely to
+     * let old saves be re-checked against generator changes without
+     * starting a new sector, and should be flipped back to {@code false}
+     * once verification is done.
+     */
+    private static final boolean DEBUG_REGENERATE = true;
+
+    /**
      * Identity of the {@code world.tiles} instance generation last ran
      * for. A genuinely new world load gets a new {@code Tiles} object, so
      * comparing by reference tells "a new world just loaded" apart from
@@ -141,6 +169,10 @@ public final class KryptosOreGenerator {
         // against re-entry rather than merely unlikely.
         generatedFor = world.tiles;
 
+        if (DEBUG_REGENERATE) {
+            clearPreviousKryptosOre(ore);
+        }
+
         long seed = worldSeed();
         KryptosNoise noise = new KryptosNoise(seed);
         KryptosSectorRules.Density density = KryptosSectorRules.density();
@@ -149,6 +181,29 @@ public final class KryptosOreGenerator {
 
         for (Seed s : seeds) {
             createPatch(noise, s, ore);
+        }
+    }
+
+    /**
+     * Migration-only step (see {@link #DEBUG_REGENERATE}): removes Kryptos
+     * Ore left over from a previous generator run on this exact sector, so
+     * the pipeline below can place fresh deposits as if starting clean.
+     * <p>
+     * Compares by reference to {@code ore} (this mod's one custom ore
+     * block), not {@code instanceof OreBlock} -- that distinction is the
+     * whole point. Copper/Lead/Coal/Titanium/Thorium/Scrap are also
+     * {@code OreBlock} instances; an {@code instanceof} check here would
+     * strip them right along with Kryptos, which is exactly what must
+     * never happen. Only a tile whose overlay <i>is</i> this specific ore
+     * object gets reset, and it's reset to {@code Blocks.air} -- Mindustry's
+     * "no overlay" value -- not {@code null}.
+     */
+    private static void clearPreviousKryptosOre(OreBlock ore) {
+        for (Tile tile : world.tiles) {
+            if (tile == null) continue;
+            if (tile.overlay() == ore) {
+                tile.setOverlay(Blocks.air);
+            }
         }
     }
 
@@ -295,4 +350,4 @@ public final class KryptosOreGenerator {
             this.radius = radius;
         }
     }
-            }
+}
