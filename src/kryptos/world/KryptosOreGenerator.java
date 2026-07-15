@@ -90,12 +90,20 @@ public final class KryptosOreGenerator {
     private static final double EDGE_PERTURBATION = 0.35;
 
     // ---- Seed lattice: candidate deposit centers ----
-    private static final int GRID_SPACING = 32;
+    private static final int GRID_SPACING = 36;
     private static final double JITTER_FRACTION = 0.6;
 
     // ---- Hard shape/size limits ----
-    private static final float MIN_GAP_BETWEEN_PATCHES = 6f;
-    private static final int MAX_PATCH_TILES = 90;
+    // MIN_GAP was previously 6 tiles. That is enough to keep two patches
+    // from literally touching (so they count as separate connected
+    // components), but 6 tiles is not enough gap to read as separate to
+    // the eye once several such patches sit next to each other inside one
+    // ore-bearing region -- the result was a wall of near-adjacent 90-tile
+    // patches that looked like one continuous field, which is exactly what
+    // the in-game screenshots showed. 18 tiles is wide enough to visibly
+    // read as bare rock between deposits.
+    private static final float MIN_GAP_BETWEEN_PATCHES = 18f;
+    private static final int MAX_PATCH_TILES = 85;
 
     // Salts so jitter-x, jitter-y, and radius don't all collapse onto the
     // same value when hashed from the same (x, y) lattice point.
@@ -237,8 +245,17 @@ public final class KryptosOreGenerator {
 
     /**
      * Whether the tile's floor is ground Kryptos Ore is allowed to sit on.
-     * Deliberately conservative -- bare rock/ice-type floors only -- so
-     * Kryptos never shows up on ground vanilla ore doesn't favor either.
+     * Note this is broader than it looks: Mindustry's actual floor names
+     * include many "stone" variants across different biomes (crater-stone,
+     * ferric-stone, carbon-stone, beryllic-stone, crystalline-stone,
+     * yellow-stone, red-stone, and plain stone, among others), so this
+     * check passes on most bare rock/ice ground rather than a narrow
+     * subset of it. That's fine by itself -- it only decides what a patch
+     * is allowed to grow into, not where patches start or how big they
+     * get. Coverage and separation are controlled entirely by the region
+     * field, the seed lattice, and {@link #MIN_GAP_BETWEEN_PATCHES}/
+     * {@link #MAX_PATCH_TILES} above; this check exists only to keep
+     * Kryptos off floors like grass, sand, or water.
      */
     private static boolean isValidFloor(Tile tile) {
         String floor = tile.floor().name;
@@ -278,4 +295,4 @@ public final class KryptosOreGenerator {
             this.radius = radius;
         }
     }
-}
+            }
