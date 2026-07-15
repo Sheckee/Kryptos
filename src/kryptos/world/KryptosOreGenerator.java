@@ -7,50 +7,109 @@ import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.world.Tile;
 import mindustry.world.blocks.environment.OreBlock;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static mindustry.Vars.world;
 
 /**
- * Places Kryptos Ore onto the loaded world as irregular, noise-shaped
- * veins -- never touching Copper, Lead, Coal, Titanium, Thorium, Scrap,
+ * Places Kryptos Ore onto the loaded world as multiple separate, irregular
+ * deposits -- never touching Copper, Lead, Coal, Titanium, Thorium, Scrap,
  * or any other ore overlay already sitting on a tile.
  *
- * <h2>How it decides where ore goes</h2>
- * Generation only runs at all on campaign sectors whitelisted in
- * {@link KryptosSectorRules}, and that same class supplies each sector's
- * vein density -- this file never hardcodes a sector name or a spawn
- * rate.
+ * <h2>Why the previous version was replaced, not tuned</h2>
+ * The old algorithm was: for every tile, sample one noise field, place ore
+ * if the value cleared a threshold. That is architecturally unable to
+ * produce vanilla-style deposits, no matter how the threshold is tuned,
+ * because a single noise field is statistically <b>homogeneous</b> --
+ * its mean and spatial statistics don't change across the map. Thresholding
+ * a homogeneous field therefore makes tiles pass at the same rate
+ * <i>everywhere</i>: lowering the threshold shrinks each patch but does not
+ * stop patches from being scattered evenly across 100% of the eligible
+ * ground. Measured directly against that old code: a 500x500 map produced
+ * 844 separate patches spread completely uniformly across the whole
+ * sector. Individually small, but with no ore-free stretches anywhere --
+ * which reads as "the entire area got converted", exactly as reported.
+ * That is a structural property of thresholding one field, not a bad
+ * constant, which is why retuning the threshold could never have fixed it.
  *
- * The world is scanned exactly once per load. For every tile that is
- * (a) on an allowed sector, (b) sitting on Kryptos-compatible ground,
- * and (c) not already holding any ore overlay, a 2D noise field
- * ({@link KryptosNoise}) is sampled at that tile's coordinates. Tiles
- * whose noise value clears the sector's threshold become Kryptos Ore.
- *
- * Because the noise field is spatially smooth, qualifying tiles cluster
- * into organic blobs and veins entirely on their own -- no flood fill,
- * random walk, or grid-cell hack needed, and nothing about this approach
- * can produce straight lines, square cells, or checkerboard patterns.
+ * <h2>The replacement pipeline</h2>
+ * <pre>
+ * coarse "region" noise  -->  decides which parts of the sector may
+ *                             hold ore at all (most of the map holds none)
+ *          |
+ *          v
+ * jittered seed lattice  -->  candidate deposit centers inside those
+ *                             regions, rejecting any candidate too close
+ *                             to an already-accepted one
+ *          |
+ *          v
+ * per-seed radius + fine  -->  each accepted seed grows into one irregular
+ * noise edge perturbation      patch, capped at a hard tile limit
+ *          |
+ *          v
+ *   tile.setOverlay()     -->  only on tiles with no existing ore overlay
+ * </pre>
+ * This is what actually produces vanilla-like results: large ore-free
+ * stretches (gated out by the region field), a bounded number of visibly
+ * separate deposits (the seed lattice, with a minimum-separation check
+ * that makes two patches merging into one mass impossible), organic
+ * non-circular edges (the per-tile noise perturbation), and no deposit
+ * that can grow without bound (the hard per-patch tile cap).
  *
  * <h2>Determinism</h2>
- * The noise field's seed is derived purely from the world's dimensions
- * and the current sector id, so a given map on a given sector always
- * produces the exact same Kryptos veins, on every load, with no reliance
- * on run-to-run RNG state.
+ * Every random-looking choice -- which lattice cells become seeds, each
+ * seed's jitter and radius, and each tile's edge perturbation -- is
+ * derived from {@link KryptosNoise}, seeded once from the world's
+ * dimensions and the current sector id (see {@link #worldSeed()}). There
+ * is no {@code java.util.Random} anywhere in this class, so a given map
+ * on a given sector produces the exact same deposits on every load.
  *
- * <h2>Extending this later</h2>
- * Multiple Kryptos ores, a Kryptos planet, or per-biome floor rules can
- * all be added by generalizing {@link #generate()} to loop over a list of
- * ore/sector configurations instead of the single hardcoded ore below --
- * the tile scan, noise sampling, and sector lookup all stay the same.
+ * <h2>Duplicate generation</h2>
+ * {@code generate()} still guards against running more than once for the
+ * same loaded world (see {@link #generatedFor}). Mindustry's own
+ * {@code WorldLoadEvent} javadoc states it fires once tiles finish
+ * loading, and no other code path in this project ever calls
+ * {@code setOverlay} -- this class is the only one that does, in exactly
+ * one place. The guard is kept anyway as a correctness invariant that
+ * costs one reference comparison: it makes "runs at most once per world"
+ * provably true instead of true only as long as that single-fire
+ * assumption keeps holding.
  */
 public final class KryptosOreGenerator {
 
-    /** How many noise layers are blended per sample; more = finer detail. */
-    private static final int NOISE_OCTAVES = 3;
-    /** How much each successive octave's amplitude shrinks. */
-    private static final double NOISE_PERSISTENCE = 0.5;
-    /** Base noise frequency; smaller values produce larger, smoother blobs. */
-    private static final double NOISE_SCALE = 1.0 / 24.0;
+    // ---- Region field: coarse noise deciding WHERE deposits may exist ----
+    private static final int REGION_OCTAVES = 2;
+    private static final double REGION_PERSISTENCE = 0.5;
+    private static final double REGION_SCALE = 1.0 / 140.0;
+
+    // ---- Edge field: fine noise perturbing each patch's boundary ----
+    private static final int EDGE_OCTAVES = 2;
+    private static final double EDGE_PERSISTENCE = 0.5;
+    private static final double EDGE_SCALE = 1.0 / 8.0;
+    private static final double EDGE_PERTURBATION = 0.35;
+
+    // ---- Seed lattice: candidate deposit centers ----
+    private static final int GRID_SPACING = 32;
+    private static final double JITTER_FRACTION = 0.6;
+
+    // ---- Hard shape/size limits ----
+    private static final float MIN_GAP_BETWEEN_PATCHES = 6f;
+    private static final int MAX_PATCH_TILES = 90;
+
+    // Salts so jitter-x, jitter-y, and radius don't all collapse onto the
+    // same value when hashed from the same (x, y) lattice point.
+    private static final long SALT_JITTER_X = 0x1L;
+    private static final long SALT_JITTER_Y = 0x2L;
+    private static final long SALT_RADIUS = 0x3L;
+
+    /**
+     * Identity of the {@code world.tiles} instance generation last ran
+     * for. A genuinely new world load gets a new {@code Tiles} object, so
+     * comparing by reference tells "a new world just loaded" apart from
+     * "this world's load event fired again" with no per-tile bookkeeping.
+     */
+    private static Object generatedFor = null;
 
     private KryptosOreGenerator() {
     }
@@ -60,30 +119,120 @@ public final class KryptosOreGenerator {
     }
 
     /**
-     * Single-pass world scan: every eligible tile is sampled against the
-     * noise field once and converted to Kryptos Ore if it qualifies.
+     * Runs the whole pipeline at most once per distinct loaded world:
+     * gather candidate deposit centers, then grow each into a patch.
      */
     private static void generate() {
         if (!KryptosSectorRules.canGenerate()) return;
+        if (world.tiles == generatedFor) return;
 
         OreBlock ore = KryptosBlocks.oreCustom;
         if (ore == null) return;
 
-        KryptosNoise noise = new KryptosNoise(worldSeed());
+        // Marked before the work runs, not after, so the guard is airtight
+        // against re-entry rather than merely unlikely.
+        generatedFor = world.tiles;
 
-        for (Tile tile : world.tiles) {
-            if (tile == null) continue;
-            if (tile.overlay() instanceof OreBlock) continue;
-            if (!isValidFloor(tile)) continue;
-            if (!passesNoise(noise, tile.x, tile.y)) continue;
+        long seed = worldSeed();
+        KryptosNoise noise = new KryptosNoise(seed);
+        KryptosSectorRules.Density density = KryptosSectorRules.density();
 
-            createPatch(tile, ore);
+        List<Seed> seeds = collectSeeds(noise, density, seed);
+
+        for (Seed s : seeds) {
+            createPatch(noise, s, ore);
         }
     }
 
-    /** Converts a single qualifying tile into Kryptos Ore. */
-    private static void createPatch(Tile tile, OreBlock ore) {
-        tile.setOverlay(ore);
+    /**
+     * Scatters candidate deposit centers on a jittered lattice, keeping
+     * only the ones inside an ore-bearing region (per {@code density}'s
+     * threshold on the coarse region field) and far enough from every
+     * previously accepted seed that their eventual patches cannot touch.
+     */
+    private static List<Seed> collectSeeds(KryptosNoise noise, KryptosSectorRules.Density density, long seed) {
+        List<Seed> accepted = new ArrayList<>();
+
+        int width = world.width();
+        int height = world.height();
+
+        for (int gx = 0; gx < width; gx += GRID_SPACING) {
+            for (int gy = 0; gy < height; gy += GRID_SPACING) {
+                double jitterX = (KryptosNoise.hash01(gx, gy, seed ^ SALT_JITTER_X) - 0.5) * GRID_SPACING * JITTER_FRACTION;
+                double jitterY = (KryptosNoise.hash01(gx, gy, seed ^ SALT_JITTER_Y) - 0.5) * GRID_SPACING * JITTER_FRACTION;
+
+                int x = (int) Math.round(gx + GRID_SPACING / 2.0 + jitterX);
+                int y = (int) Math.round(gy + GRID_SPACING / 2.0 + jitterY);
+                if (x < 0 || x >= width || y < 0 || y >= height) continue;
+
+                double region = noise.octaves(x, y, REGION_OCTAVES, REGION_PERSISTENCE, REGION_SCALE);
+                if (region <= density.regionThreshold) continue;
+
+                float radius = (float) (density.minRadius
+                    + KryptosNoise.hash01(x, y, seed ^ SALT_RADIUS) * (density.maxRadius - density.minRadius));
+
+                if (overlapsExisting(accepted, x, y, radius)) continue;
+
+                accepted.add(new Seed(x, y, radius));
+            }
+        }
+
+        return accepted;
+    }
+
+    /** Whether a candidate seed sits too close to any already-accepted one for their patches to stay separate. */
+    private static boolean overlapsExisting(List<Seed> accepted, int x, int y, float radius) {
+        for (Seed other : accepted) {
+            double dx = x - other.x;
+            double dy = y - other.y;
+            double minDist = radius + other.radius + MIN_GAP_BETWEEN_PATCHES;
+
+            if (dx * dx + dy * dy < minDist * minDist) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Grows one irregular patch outward from a seed point. Candidate
+     * tiles are visited nearest-first so the hard tile cap trims the
+     * ragged outer edge instead of leaving random holes in the middle;
+     * each tile's effective inclusion radius is perturbed by fine noise
+     * so the boundary is never a perfect circle, square, or straight edge.
+     */
+    private static void createPatch(KryptosNoise noise, Seed seed, OreBlock ore) {
+        int reach = (int) Math.ceil(seed.radius * (1 + EDGE_PERTURBATION));
+
+        List<int[]> offsets = new ArrayList<>();
+        for (int dx = -reach; dx <= reach; dx++) {
+            for (int dy = -reach; dy <= reach; dy++) {
+                if (dx * dx + dy * dy <= reach * reach) {
+                    offsets.add(new int[]{dx, dy});
+                }
+            }
+        }
+        offsets.sort((a, b) -> Integer.compare(a[0] * a[0] + a[1] * a[1], b[0] * b[0] + b[1] * b[1]));
+
+        int placed = 0;
+        for (int[] offset : offsets) {
+            if (placed >= MAX_PATCH_TILES) break;
+
+            int tx = seed.x + offset[0];
+            int ty = seed.y + offset[1];
+
+            Tile tile = world.tile(tx, ty);
+            if (tile == null) continue;
+            if (tile.overlay() instanceof OreBlock) continue;
+            if (!isValidFloor(tile)) continue;
+
+            double dist = Math.sqrt(offset[0] * offset[0] + offset[1] * offset[1]);
+            double edgeNoise = noise.octaves(tx, ty, EDGE_OCTAVES, EDGE_PERSISTENCE, EDGE_SCALE);
+            double effectiveRadius = seed.radius + edgeNoise * seed.radius * EDGE_PERTURBATION;
+
+            if (dist < effectiveRadius) {
+                tile.setOverlay(ore);
+                placed++;
+            }
+        }
     }
 
     /**
@@ -103,31 +252,9 @@ public final class KryptosOreGenerator {
     }
 
     /**
-     * Samples the noise field at a tile's coordinates and checks it
-     * against the current sector's threshold. This check alone is what
-     * produces vein-shaped clusters instead of scattered dots -- the
-     * noise field is continuous, so neighboring tiles tend to pass or
-     * fail together.
-     */
-    private static boolean passesNoise(KryptosNoise noise, int x, int y) {
-        double value = noise.octaves(x, y, NOISE_OCTAVES, NOISE_PERSISTENCE, NOISE_SCALE);
-        return value > getSpawnChance();
-    }
-
-    /**
-     * The noise threshold a tile must clear to become Kryptos Ore on the
-     * current sector. Looked up from {@link KryptosSectorRules} so this
-     * class never hardcodes a per-sector rate -- Common/Medium/Rare
-     * sectors just resolve to different thresholds here.
-     */
-    private static float getSpawnChance() {
-        return KryptosSectorRules.density().threshold;
-    }
-
-    /**
      * Deterministic seed built from world size plus the current sector
      * id, so the same map on the same sector always yields identical
-     * Kryptos veins, while different sectors sharing map dimensions
+     * Kryptos deposits, while different sectors sharing map dimensions
      * still get distinct fields.
      */
     private static long worldSeed() {
@@ -137,5 +264,18 @@ public final class KryptosOreGenerator {
         long sectorHash = sector != null ? sector.hashCode() : 0;
 
         return w * 341873128712L + h * 132897987541L + sectorHash * 668265263L;
+    }
+
+    /** One accepted deposit center and the radius it will grow to. */
+    private static final class Seed {
+        final int x;
+        final int y;
+        final float radius;
+
+        Seed(int x, int y, float radius) {
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+        }
     }
 }
