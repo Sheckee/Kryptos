@@ -242,6 +242,13 @@ public final class KryptosOreGenerator {
      */
     private static void logOreBreakdown(String label) {
         OreBlock ore = KryptosBlocks.oreCustom;
+        // Mindustry's content loader prefixes non-vanilla content names with
+        // the mod's internal name (Vars.content.transformName), so the
+        // runtime name is "kryptos-ore-kryptos", not the "ore-kryptos"
+        // literal passed into the OreBlock constructor in KryptosBlocks.
+        // Read it off the live block instead of hardcoding either form, so
+        // this diagnostic can't drift out of sync with the actual name again.
+        String expectedName = ore != null ? ore.name : null;
 
         int totalOverlay = 0;
         int copper = 0, lead = 0, coal = 0, titanium = 0, thorium = 0, scrap = 0;
@@ -263,7 +270,7 @@ public final class KryptosOreGenerator {
             else if (overlay == Blocks.oreScrap) scrap++;
 
             if (ore != null && overlay == ore) kryptosByRef++;
-            if ("ore-kryptos".equals(overlay.name)) kryptosByName++;
+            if (expectedName != null && expectedName.equals(overlay.name)) kryptosByName++;
         }
 
         Log.info("[Kryptos] Ore breakdown @", label);
@@ -493,4 +500,4 @@ public final class KryptosOreGenerator {
             this.radius = radius;
         }
     }
-                 }
+            }
