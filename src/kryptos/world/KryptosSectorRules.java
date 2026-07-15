@@ -34,9 +34,9 @@ public final class KryptosSectorRules {
      * persistence, 1/140 scale).
      */
     public enum Density {
-        COMMON(0.148f, 6f, 13f),
-        MEDIUM(0.328f, 5f, 10f),
-        RARE(0.472f, 4f, 7f);
+        COMMON(0.2029f, 6f, 13f),
+        MEDIUM(0.3492f, 5f, 10f),
+        RARE(0.4862f, 4f, 7f);
 
         public final float regionThreshold;
         public final float minRadius;
