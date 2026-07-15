@@ -7,31 +7,45 @@ import java.util.Map;
 
 /**
  * Single source of truth for which campaign sectors Kryptos Ore is
- * allowed to appear on, and how dense its veins are on each one.
+ * allowed to appear on, and how each sector's deposits are shaped.
  *
- * {@link KryptosOreGenerator} never hardcodes a sector name -- it only
- * ever asks {@link #canGenerate()} and {@link #density()}. Adding,
- * removing, or re-tuning a sector means editing the {@code SECTORS} map
- * below and nothing else in the mod.
+ * {@link KryptosOreGenerator} never hardcodes a sector name or a rarity
+ * value -- it only ever asks {@link #canGenerate()} and {@link #density()}.
+ * Adding, removing, or re-tuning a sector means editing the
+ * {@code SECTORS} map below and nothing else in the mod.
  */
 public final class KryptosSectorRules {
 
     /**
-     * Relative Kryptos vein density for a sector. {@code threshold} is
-     * the noise cutoff a tile's noise sample must clear to become ore --
-     * lower threshold means more tiles qualify, i.e. a denser sector.
+     * Per-sector shape of Kryptos deposits.
+     *
+     * <ul>
+     *   <li>{@code regionThreshold} -- the coarse "region" noise cutoff a
+     *   point must clear before a deposit is even allowed to start there.
+     *   Higher means less of the sector can hold ore at all, which is what
+     *   actually varies rarity here (not the size of individual patches).</li>
+     *   <li>{@code minRadius}/{@code maxRadius} -- the range an individual
+     *   deposit's radius is drawn from before noise-based edge perturbation
+     *   and the generator's hard per-patch tile cap are applied.</li>
+     * </ul>
+     *
      * Values are pre-calibrated for the noise parameters used in
-     * {@link KryptosOreGenerator} (3 octaves, 0.5 persistence, 1/24 scale).
+     * {@link KryptosOreGenerator} (region field: 2 octaves, 0.5
+     * persistence, 1/140 scale).
      */
     public enum Density {
-        COMMON(0.47f),
-        MEDIUM(0.55f),
-        RARE(0.62f);
+        COMMON(0.148f, 6f, 13f),
+        MEDIUM(0.328f, 5f, 10f),
+        RARE(0.472f, 4f, 7f);
 
-        public final float threshold;
+        public final float regionThreshold;
+        public final float minRadius;
+        public final float maxRadius;
 
-        Density(float threshold) {
-            this.threshold = threshold;
+        Density(float regionThreshold, float minRadius, float maxRadius) {
+            this.regionThreshold = regionThreshold;
+            this.minRadius = minRadius;
+            this.maxRadius = maxRadius;
         }
     }
 
@@ -54,7 +68,7 @@ public final class KryptosSectorRules {
         return SECTORS.containsKey(currentSectorId());
     }
 
-    /** The current sector's vein density, defaulting to RARE if queried off-list. */
+    /** The current sector's deposit shape, defaulting to RARE if queried off-list. */
     public static Density density() {
         Density d = SECTORS.get(currentSectorId());
         return d != null ? d : Density.RARE;
