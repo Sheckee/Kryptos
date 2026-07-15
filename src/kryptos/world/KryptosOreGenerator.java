@@ -504,7 +504,7 @@ public final class KryptosOreGenerator {
                 skippedOreExists++;
                 continue;
             }
-            if (!isValidFloor(tile)) {
+            if (!KryptosSectorRules.isValidFloor(tile)) {
                 skippedInvalidFloor++;
                 incrementHistogram(rejectedFloorHistogram, tile.floor().name);
                 continue;
@@ -528,31 +528,6 @@ public final class KryptosOreGenerator {
             skippedOreExists, skippedInvalidFloor, skippedOutsideRadius, placed);
 
         return placed;
-    }
-
-    /**
-     * Whether the tile's floor is ground Kryptos Ore is allowed to sit on.
-     * Note this is broader than it looks: Mindustry's actual floor names
-     * include many "stone" variants across different biomes (crater-stone,
-     * ferric-stone, carbon-stone, beryllic-stone, crystalline-stone,
-     * yellow-stone, red-stone, and plain stone, among others), so this
-     * check passes on most bare rock/ice ground rather than a narrow
-     * subset of it. That's fine by itself -- it only decides what a patch
-     * is allowed to grow into, not where patches start or how big they
-     * get. Coverage and separation are controlled entirely by the region
-     * field, the seed lattice, and {@link #MIN_GAP_BETWEEN_PATCHES}/
-     * {@link #MAX_PATCH_TILES} above; this check exists only to keep
-     * Kryptos off floors like grass, sand, or water.
-     */
-    private static boolean isValidFloor(Tile tile) {
-        String floor = tile.floor().name;
-
-        return floor.contains("stone")
-            || floor.contains("shale")
-            || floor.contains("dacite")
-            || floor.contains("ferric")
-            || floor.contains("regolith")
-            || floor.contains("ice");
     }
 
     /**
@@ -582,4 +557,4 @@ public final class KryptosOreGenerator {
             this.radius = radius;
         }
     }
-    }
+                                                                   }
