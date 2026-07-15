@@ -129,4 +129,28 @@ public final class KryptosNoise {
         int i = (int) v;
         return v < i ? i - 1 : i;
     }
+
+    /**
+     * Deterministic pseudo-random value in [0, 1) derived from two
+     * coordinates and a salt, using the same splitmix64-style mixing as
+     * the constructor's permutation shuffle. This is NOT spatial noise --
+     * unlike {@link #raw} and {@link #octaves}, adjacent inputs are not
+     * correlated, which is exactly what's wanted for jittering a lattice
+     * point or picking a patch's radius: two neighboring seed points
+     * should not get suspiciously similar jitter/radius values.
+     *
+     * Static and seed-free by design: {@link kryptos.world.KryptosOreGenerator}
+     * mixes in its own world seed as the salt, so results stay tied to the
+     * world without this class needing per-purpose instances.
+     */
+    public static double hash01(long a, long b, long salt) {
+        long h = salt;
+        h = (h ^ a) * 0x9E3779B97F4A7C15L;
+        h = (h ^ (h >>> 27)) * 0xBF58476D1CE4E5B9L;
+        h = (h ^ b) * 0x9E3779B97F4A7C15L;
+        h = (h ^ (h >>> 27)) * 0xBF58476D1CE4E5B9L;
+        h = h ^ (h >>> 31);
+
+        return (h & Long.MAX_VALUE) / (double) Long.MAX_VALUE;
+    }
 }
