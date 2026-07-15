@@ -210,8 +210,12 @@ public final class KryptosOreGenerator {
         KryptosSectorRules.Density density = KryptosSectorRules.density();
 
         int[] candidateCells = new int[1];
-        List<Seed> seeds = collectSeeds(noise, density, seed, candidateCells);
+        int[] rejectionCounts = new int[3]; // [0]=out-of-bounds jitter, [1]=regionThreshold, [2]=overlapsExisting
+        List<Seed> seeds = collectSeeds(noise, density, seed, candidateCells, rejectionCounts);
         Log.info("[Kryptos] Candidate cells: @", candidateCells[0]);
+        Log.info("[Kryptos]   Rejected (out-of-bounds jitter): @", rejectionCounts[0]);
+        Log.info("[Kryptos]   Rejected (regionThreshold): @", rejectionCounts[1]);
+        Log.info("[Kryptos]   Rejected (overlapsExisting): @", rejectionCounts[2]);
         Log.info("[Kryptos] Accepted seeds: @", seeds.size());
 
         int placedTotal = 0;
@@ -359,7 +363,20 @@ public final class KryptosOreGenerator {
      * threshold on the coarse region field) and far enough from every
      * previously accepted seed that their eventual patches cannot touch.
      */
-    private static List<Seed> collectSeeds(KryptosNoise noise, KryptosSectorRules.Density density, long seed, int[] candidateCellsOut) {
+    /**
+     * Scatters candidate deposit centers on a jittered lattice, keeping
+     * only the ones inside an ore-bearing region (per {@code density}'s
+     * threshold on the coarse region field) and far enough from every
+     * previously accepted seed that their eventual patches cannot touch.
+     *
+     * {@code rejectionCountsOut} is diagnostic-only: index 0 tallies cells
+     * rejected for jittering out of map bounds, index 1 tallies cells
+     * rejected by the region-noise threshold, index 2 tallies cells
+     * rejected by {@link #overlapsExisting}. Every branch's accept/reject
+     * outcome is unchanged -- only a counter increment was added next to
+     * each existing {@code continue}.
+     */
+    private static List<Seed> collectSeeds(KryptosNoise noise, KryptosSectorRules.Density density, long seed, int[] candidateCellsOut, int[] rejectionCountsOut) {
         List<Seed> accepted = new ArrayList<>();
 
         int width = world.width();
@@ -374,15 +391,24 @@ public final class KryptosOreGenerator {
 
                 int x = (int) Math.round(gx + GRID_SPACING / 2.0 + jitterX);
                 int y = (int) Math.round(gy + GRID_SPACING / 2.0 + jitterY);
-                if (x < 0 || x >= width || y < 0 || y >= height) continue;
+                if (x < 0 || x >= width || y < 0 || y >= height) {
+                    rejectionCountsOut[0]++; // out-of-bounds jitter
+                    continue;
+                }
 
                 double region = noise.octaves(x, y, REGION_OCTAVES, REGION_PERSISTENCE, REGION_SCALE);
-                if (region <= density.regionThreshold) continue;
+                if (region <= density.regionThreshold) {
+                    rejectionCountsOut[1]++; // regionThreshold
+                    continue;
+                }
 
                 float radius = (float) (density.minRadius
                     + KryptosNoise.hash01(x, y, seed ^ SALT_RADIUS) * (density.maxRadius - density.minRadius));
 
-                if (overlapsExisting(accepted, x, y, radius)) continue;
+                if (overlapsExisting(accepted, x, y, radius)) {
+                    rejectionCountsOut[2]++; // overlapsExisting()
+                    continue;
+                }
 
                 accepted.add(new Seed(x, y, radius));
             }
@@ -410,6 +436,19 @@ public final class KryptosOreGenerator {
      * each tile's effective inclusion radius is perturbed by fine noise
      * so the boundary is never a perfect circle, square, or straight edge.
      */
+    /**
+     * Grows one irregular patch outward from a seed point. Candidate
+     * tiles are visited nearest-first so the hard tile cap trims the
+     * ragged outer edge instead of leaving random holes in the middle;
+     * each tile's effective inclusion radius is perturbed by fine noise
+     * so the boundary is never a perfect circle, square, or straight edge.
+     *
+     * Diagnostic-only: tallies why each candidate offset tile did *not*
+     * end up placed (existing OreBlock, invalid floor, outside the
+     * noise-perturbed effective radius) alongside the accepted count, and
+     * logs the seed's x/y/radius/placed summary. None of these counters
+     * feed back into the placement decision.
+     */
     private static int createPatch(KryptosNoise noise, Seed seed, OreBlock ore) {
         int reach = (int) Math.ceil(seed.radius * (1 + EDGE_PERTURBATION));
 
@@ -424,6 +463,10 @@ public final class KryptosOreGenerator {
         offsets.sort((a, b) -> Integer.compare(a[0] * a[0] + a[1] * a[1], b[0] * b[0] + b[1] * b[1]));
 
         int placed = 0;
+        int skippedOreExists = 0;
+        int skippedInvalidFloor = 0;
+        int skippedOutsideRadius = 0;
+
         for (int[] offset : offsets) {
             if (placed >= MAX_PATCH_TILES) break;
 
@@ -432,8 +475,14 @@ public final class KryptosOreGenerator {
 
             Tile tile = world.tile(tx, ty);
             if (tile == null) continue;
-            if (tile.overlay() instanceof OreBlock) continue;
-            if (!isValidFloor(tile)) continue;
+            if (tile.overlay() instanceof OreBlock) {
+                skippedOreExists++;
+                continue;
+            }
+            if (!isValidFloor(tile)) {
+                skippedInvalidFloor++;
+                continue;
+            }
 
             double dist = Math.sqrt(offset[0] * offset[0] + offset[1] * offset[1]);
             double edgeNoise = noise.octaves(tx, ty, EDGE_OCTAVES, EDGE_PERSISTENCE, EDGE_SCALE);
@@ -442,8 +491,14 @@ public final class KryptosOreGenerator {
             if (dist < effectiveRadius) {
                 tile.setOverlay(ore);
                 placed++;
+            } else {
+                skippedOutsideRadius++;
             }
         }
+
+        Log.info("[Kryptos] Seed @,@ radius=@ placed=@", seed.x, seed.y, seed.radius, placed);
+        Log.info("[Kryptos]   skippedOreExists=@ skippedInvalidFloor=@ skippedOutsideRadius=@ accepted=@",
+            skippedOreExists, skippedInvalidFloor, skippedOutsideRadius, placed);
 
         return placed;
     }
@@ -500,4 +555,4 @@ public final class KryptosOreGenerator {
             this.radius = radius;
         }
     }
-            }
+                 }
