@@ -1,6 +1,7 @@
 package kryptos.automation;
 
 import arc.Events;
+import arc.math.geom.Point2;
 import arc.struct.IntSeq;
 import arc.struct.IntSet;
 import arc.util.Log;
@@ -15,7 +16,6 @@ import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.game.Team;
 import mindustry.gen.Building;
 import mindustry.gen.Unit;
-import mindustry.math.geom.Point2;
 import mindustry.world.Block;
 import mindustry.world.Tile;
 import mindustry.world.blocks.distribution.Conveyor;
@@ -388,5 +388,5 @@ public final class KryptosAutoConveyor {
         }
         return 0;
     }
-}
-
+                }
+                    
