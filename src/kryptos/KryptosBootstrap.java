@@ -1,7 +1,9 @@
 package kryptos;
 
 import arc.util.Log;
+import kryptos.automation.KryptosAutoConveyor;
 import kryptos.world.KryptosOreGenerator;
+import kryptos.ui.KryptosAutomationPanel;
 import kryptos.ui.KryptosHealthBar;
 import kryptos.ui.KryptosHud;
 import kryptos.ui.KryptosPathIndicator;
@@ -31,6 +33,7 @@ public final class KryptosBootstrap {
 
         KryptosTheme.apply();
         KryptosHud.build();
+        KryptosAutomationPanel.build();
         KryptosPathIndicator.init();
         KryptosHealthBar.init();
         KryptosRangeDisplay.init();
@@ -41,6 +44,7 @@ public final class KryptosBootstrap {
         // ===========================
         
         KryptosOreGenerator.init();
+        KryptosAutoConveyor.init();
 
         Log.info("Kryptos systems initialized.");
     }
