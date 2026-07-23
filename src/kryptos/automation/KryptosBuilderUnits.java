@@ -4,6 +4,7 @@ import arc.math.Mathf;
 import kryptos.content.KryptosUnits;
 import mindustry.game.Team;
 import mindustry.gen.Building;
+import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 
 /**
@@ -53,4 +54,22 @@ public final class KryptosBuilderUnits {
         unit.add();
         return unit;
     }
-            }
+
+    /**
+     * Kills every existing drone of our type on load, no exceptions. Without
+     * this, a drone left over from a previous session/save (spawned before a
+     * fix existed, or orphaned when its module's static reference was reset)
+     * just sits in the world running whatever old/default behavior it had --
+     * completely invisible to and unmanaged by the current code, since
+     * nothing ever calls getOrSpawn() on it while its module's toggle is off.
+     * That's the "there's already a drone even though I haven't turned
+     * anything on" symptom. Called from both modules' reset() on
+     * WorldLoadEvent, so the world always starts with zero drones and the
+     * next getOrSpawn() call is guaranteed to create a clean one.
+     */
+    public static void killAll() {
+        Groups.unit.each(u -> {
+            if (u.type == KryptosUnits.builder) u.kill();
+        });
+    }
+}
