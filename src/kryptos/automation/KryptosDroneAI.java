@@ -16,20 +16,35 @@ import mindustry.world.blocks.ConstructBlock.ConstructBuild;
  *
  * This controller strips all of that out: the drone does ONLY what's
  * explicitly queued on it via {@code unit.addBuild(...)} by KryptosSmartDrill
- * or KryptosAutoConveyor. If nothing is queued, it just sits idle -- it never
- * scavenges the shared plan queue, never follows/mimics another builder, and
- * never wanders off on its own.
+ * or KryptosAutoConveyor. It never scavenges the shared plan queue and never
+ * follows/mimics another builder.
+ *
+ * Idle behavior (nothing queued right now): rather than freezing wherever
+ * its last task happened to end -- which looks broken, floating motionless
+ * over some random ore tile -- it flies back and hovers near the core.
+ * That's the "logical" resting spot: staged, out of the way, and ready to
+ * be dispatched the moment the next scan cycle queues something.
  */
 public class KryptosDroneAI extends AIController {
 
     private static final float BUILD_RADIUS = 1500f;
+    private static final float IDLE_HOVER_RANGE = 70f;
 
     @Override
     public void updateMovement() {
         unit.updateBuilding = true;
 
         BuildPlan req = unit.buildPlan();
-        if (req == null) return; // nothing queued by our automation -- stay put
+        if (req == null) {
+            // Nothing to build right now -- head back to the core and hover
+            // there instead of just sitting dead in the air wherever the
+            // last plan finished.
+            var core = unit.closestCore();
+            if (core != null && !unit.within(core, IDLE_HOVER_RANGE)) {
+                moveTo(core, IDLE_HOVER_RANGE);
+            }
+            return;
+        }
 
         boolean valid =
             (req.tile() != null && req.tile().build instanceof ConstructBuild cons && cons.current == req.block) ||
@@ -51,4 +66,3 @@ public class KryptosDroneAI extends AIController {
         return false;
     }
 }
-
