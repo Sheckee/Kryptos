@@ -28,11 +28,10 @@ public class KryptosUnits {
             lowAltitude = true;
             isEnemy = false;
             controlSelectGlobal = false;
-            // Default OFF (pure automation, drone is locked to
-            // KryptosDroneAI and can't be selected/commanded). The
-            // "Manual Drone Control" toggle in KryptosAutomationPanel flips
-            // this to true at runtime so the player can take the wheel via
-            // the RTS Command panel when they want to.
+            // Automation only -- the drone can never be selected or
+            // commanded by the player via the RTS Command panel, so it can
+            // only ever do what KryptosSmartDrill/KryptosAutoConveyor
+            // explicitly queue on it (see KryptosDroneAI).
             playerControllable = false;
 
             hitSize = 9f;
@@ -47,8 +46,8 @@ public class KryptosUnits {
             engineSize = 1.6f;
 
             // Utility drone: no weapons, just building.
-            buildSpeed = 3.5f;
-            buildRange = 60f;
+            buildSpeed = 4.5f;
+            buildRange = 100f;
         }};
     }
 }
