@@ -1,9 +1,15 @@
-name: Release Mod
+name: KRYPTOS(RELEASER)
 on:
    push:
-   # pull_request:
-   #   branches:
-   #     - main
+      branches: [main]
+      tags: ['v*']
+   pull_request:
+      branches: [main]
+   workflow_dispatch:
+
+concurrency:
+   group: release-${{ github.ref }}
+   cancel-in-progress: true
 
 permissions:
    contents: write
@@ -13,16 +19,21 @@ jobs:
       runs-on: ubuntu-latest
 
       steps:
-         - uses: actions/checkout@v2
+         - uses: actions/checkout@v4
 
          - name: Set up PATH
            run: |
               echo "${ANDROID_HOME}/build-tools/34.0.0" >> $GITHUB_PATH
 
          - name: Set up JDK 17
-           uses: actions/setup-java@v1
+           uses: actions/setup-java@v4
            with:
+              distribution: temurin
               java-version: 17
+              cache: gradle
+
+         - name: Make gradlew executable
+           run: chmod +x gradlew
 
          - name: Build mod jar
            run: ./gradlew deploy
@@ -41,9 +52,12 @@ jobs:
                 Version="${Version}-beta"
                 fi
                 echo "tag=${Version}" >> $GITHUB_OUTPUT
-              
+
+         # Only cut a GitHub Release on pushes to main or version tags -
+         # pull_request builds stop here (upload-artifact above still lets
+         # you download the jar from the run for manual testing).
          - name: Create release
-           if: steps.version.outputs.tag != ''
+           if: github.event_name == 'push' && steps.version.outputs.tag != ''
            uses: softprops/action-gh-release@v2
            with:
               tag_name: "${{ steps.version.outputs.tag }}"
