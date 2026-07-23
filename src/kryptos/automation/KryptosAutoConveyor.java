@@ -4,7 +4,6 @@ import arc.Events;
 import arc.math.geom.Point2;
 import arc.struct.IntIntMap;
 import arc.struct.IntSeq;
-import arc.struct.IntSet;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Log;
@@ -56,7 +55,6 @@ public final class KryptosAutoConveyor {
     private static boolean[] visited;
     private static int visitedW, visitedH;
 
-    private static final IntSet servedDeposits = new IntSet();
     private static float lastScanTime = -SCAN_INTERVAL_TICKS;
     private static final IntIntMap depositCoreDist = new IntIntMap();
 
@@ -72,14 +70,17 @@ public final class KryptosAutoConveyor {
     }
 
     public static int servedCount() {
-        return servedDeposits.size;
+        return KryptosOreRegistry.size();
     }
 
     private static void reset() {
         visited = null;
-        servedDeposits.clear();
         depositCoreDist.clear();
         lastScanTime = -SCAN_INTERVAL_TICKS;
+        // Shared with KryptosSmartDrill; both modules reset on WorldLoadEvent
+        // so this may run twice per load, which is harmless (IntSet.clear()
+        // is idempotent).
+        KryptosOreRegistry.reset();
     }
 
     private static void update() {
@@ -139,18 +140,18 @@ public final class KryptosAutoConveyor {
                 if (cluster.size < MIN_CLUSTER_TILES) continue;
 
                 int key = clusterKey(cluster);
-                if (servedDeposits.contains(key)) continue;
+                if (KryptosOreRegistry.isClaimed(key)) continue;
 
                 DrillPlacement placement = findBestDrillPlacement(cluster, ore, coreX, coreY);
                 if (placement == null) {
-                    servedDeposits.add(key);
+                    KryptosOreRegistry.claim(key);
                     continue;
                 }
 
                 attemptsThisCycle++;
                 IntSeq path = findPathAStar(placement.conveyorX, placement.conveyorY, core, w, h);
                 if (path == null || path.size == 0 || path.size > MAX_PATH_LENGTH) {
-                    servedDeposits.add(key);
+                    KryptosOreRegistry.claim(key);
                     continue;
                 }
 
@@ -490,7 +491,7 @@ public final class KryptosAutoConveyor {
     }
 
     private static void serveDeposit(IntSeq cluster, int key, DrillPlacement placement, IntSeq path, Building core, OreBlock ore) {
-        servedDeposits.add(key);
+        KryptosOreRegistry.claim(key);
 
         Unit unit = Vars.player.unit();
         if (unit == null) return;
