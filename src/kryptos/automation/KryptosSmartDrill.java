@@ -2,7 +2,6 @@ package kryptos.automation;
 
 import arc.Events;
 import arc.math.geom.Point2;
-import arc.struct.IntIntMap;
 import arc.struct.IntSeq;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
@@ -49,7 +48,6 @@ public final class KryptosSmartDrill {
     private static final int[] DY4 = {0, 1, 0, -1};
 
     private static float lastScanTime = -SCAN_INTERVAL_TICKS;
-    private static final IntIntMap oreClusterKey = new IntIntMap();
 
     private KryptosSmartDrill() {}
 
@@ -63,8 +61,10 @@ public final class KryptosSmartDrill {
     }
 
     private static void reset() {
-        oreClusterKey.clear();
         lastScanTime = -SCAN_INTERVAL_TICKS;
+        // Shared with KryptosAutoConveyor; see its reset() for why clearing
+        // here too is safe.
+        KryptosOreRegistry.reset();
     }
 
     private static void update() {
@@ -125,7 +125,7 @@ public final class KryptosSmartDrill {
                 if (cluster.size < 2) continue;
 
                 int key = clusterKey(cluster);
-                if (oreClusterKey.containsKey(key)) continue;
+                if (KryptosOreRegistry.isClaimed(key)) continue;
 
                 int bestDist = Integer.MAX_VALUE;
                 int bestX = -1, bestY = -1;
@@ -147,8 +147,8 @@ public final class KryptosSmartDrill {
                     depositsByItem.put(item, list);
                 }
                 list.add(deposit);
-                // Note: not marking oreClusterKey here anymore -- only deposits actually
-                // attempted below (within the per-cycle cap) get marked, so any deposit
+                // Note: not claiming in KryptosOreRegistry here -- only deposits actually
+                // attempted below (within the per-cycle cap) get claimed, so any deposit
                 // skipped this cycle due to the cap is retried on the next scan instead
                 // of being permanently ignored.
             }
@@ -168,7 +168,7 @@ public final class KryptosSmartDrill {
                 attemptsThisCycle++;
 
                 OreDeposit dep = deposits.get(i);
-                oreClusterKey.put(dep.key, 1);
+                KryptosOreRegistry.claim(dep.key);
                 DrillPlan plan = createDrillPlan(dep, coreX, coreY);
                 if (plan != null) plans.add(plan);
             }
@@ -491,33 +491,41 @@ public final class KryptosSmartDrill {
 
         for (Building drill : drills) {
             if (!(drill.block instanceof Drill)) continue;
-            Drill d = (Drill) drill.block;
 
-            if (drill.enabled && drill.items.total() == 0) {
-                // Item currentOre = (Item) drill.config;
-                // boolean hasDeposit = depositsByItem.containsKey(currentOre);
+            // Only reconsider drills that are running but yielding nothing.
+            // This previously had no effect at all (logic below was fully
+            // commented out) -- an idle drill just sat there forever.
+            if (!drill.enabled || drill.items.total() > 0) continue;
 
-                // if (!hasDeposit) {
-                //     Item bestOre = findBestOreToMine(core, depositsByItem);
-                //     if (bestOre != null && bestOre != currentOre) {
-                //         drill.configure(bestOre);
-                //         Log.info("[Kryptos] SmartDrill: switched drill at @,@ to mine @", drill.tile.x, drill.tile.y, bestOre.name);
-                //     }
-                // }
+            Object config = drill.config();
+            if (!(config instanceof Item)) continue; // not a re-targetable drill
+
+            Item currentOre = (Item) config;
+            boolean stillHasDeposit = depositsByItem.containsKey(currentOre);
+            if (stillHasDeposit) continue;
+
+            Item bestOre = findBestOreToMine(core, depositsByItem);
+            if (bestOre != null && bestOre != currentOre) {
+                drill.configure(bestOre);
+                Log.info("[Kryptos] SmartDrill: switched idle drill at @,@ from @ to @",
+                    drill.tile.x, drill.tile.y, currentOre.name, bestOre.name);
             }
         }
     }
 
+    // Prefers items the core is SHORT on, not the ones it already has
+    // plenty of -- reassigning an idle drill to double down on an
+    // already-abundant resource wastes the reassignment.
     private static Item findBestOreToMine(Building core, ObjectMap<Item, Seq<OreDeposit>> depositsByItem) {
         Team team = Vars.player.team();
         Building coreBuild = team.core();
         Item bestItem = null;
-        int bestAmount = -1;
+        int lowestAmount = Integer.MAX_VALUE;
 
         for (Item item : depositsByItem.keys()) {
             int amount = coreBuild.items.get(item);
-            if (amount > bestAmount) {
-                bestAmount = amount;
+            if (amount < lowestAmount) {
+                lowestAmount = amount;
                 bestItem = item;
             }
         }
