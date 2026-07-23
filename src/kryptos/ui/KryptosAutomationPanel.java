@@ -11,6 +11,7 @@ import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.Label;
 import arc.scene.ui.layout.Table;
 import kryptos.automation.KryptosAutoConveyor;
+import kryptos.automation.KryptosLogicDeploy;
 import kryptos.automation.KryptosSmartDrill;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
@@ -67,6 +68,16 @@ public class KryptosAutomationPanel {
                 "Smart Drill", () -> autoSmartDrill, b -> {
                     autoSmartDrill = b;
                     if (b) KryptosSmartDrill.requestImmediateScan();
+                });
+        content.row();
+
+        // One-shot action, not a persistent state -- flipping it on queues the
+        // Memory Cell + Smart Drill / Conveyor Maker processors near the core.
+        // It doesn't stay "on"; addToggle's getter always reports false so it
+        // can be triggered again later without needing to toggle off first.
+        KryptosHud.addToggle(content, new TextureRegionDrawable(Blocks.microProcessor.uiIcon),
+                "Deploy Logic Units", () -> false, b -> {
+                    if (b) KryptosLogicDeploy.requestDeploy();
                 });
         content.row();
 
