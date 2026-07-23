@@ -33,7 +33,6 @@ import mindustry.world.blocks.distribution.Router;
 import mindustry.world.blocks.distribution.MassDriver;
 
 import java.util.ArrayDeque;
-import java.util.Comparator;
 import java.util.PriorityQueue;
 
 import static mindustry.Vars.world;
@@ -382,7 +381,7 @@ public final class KryptosSmartDrill {
             prev[i] = -1;
         }
 
-        PriorityQueue<Node> open = new PriorityQueue<>(Comparator.comparingDouble(n -> n.f));
+        PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Float.compare(a.f, b.f));
         gScore[startIdx] = 0;
         fScore[startIdx] = heuristic(startX, startY, coreX, coreY);
         open.add(new Node(startIdx, fScore[startIdx]));
