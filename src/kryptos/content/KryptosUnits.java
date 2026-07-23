@@ -41,8 +41,8 @@ public class KryptosUnits {
             engineSize = 1.6f;
 
             // Utility drone: no weapons, just building.
-            buildSpeed = 1.15f;
-            buildRange = 60f;
+            buildSpeed = 3f;
+            buildRange = 100f;
         }};
     }
 }
