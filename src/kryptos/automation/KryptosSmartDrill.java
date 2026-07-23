@@ -49,6 +49,12 @@ public final class KryptosSmartDrill {
 
     private static float lastScanTime = -SCAN_INTERVAL_TICKS;
 
+    // The drone that actually flies out and builds -- spawned the moment
+    // Smart Drill is switched on (see requestImmediateScan()), reused for as
+    // long as it's alive. Separate from KryptosAutoConveyor's own drone.
+    // See KryptosBuilderUnits.getOrSpawn().
+    private static Unit helperUnit;
+
     private KryptosSmartDrill() {}
 
     public static void init() {
@@ -58,10 +64,17 @@ public final class KryptosSmartDrill {
 
     public static void requestImmediateScan() {
         lastScanTime = -SCAN_INTERVAL_TICKS - 1f;
+        ensureHelper();
+    }
+
+    private static void ensureHelper() {
+        if (Vars.player == null) return;
+        helperUnit = KryptosBuilderUnits.getOrSpawn(helperUnit, Vars.player.team());
     }
 
     private static void reset() {
         lastScanTime = -SCAN_INTERVAL_TICKS;
+        helperUnit = null;
         // Shared with KryptosAutoConveyor; see its reset() for why clearing
         // here too is safe.
         KryptosOreRegistry.reset();
@@ -70,7 +83,10 @@ public final class KryptosSmartDrill {
     private static void update() {
         if (!Vars.state.isGame()) return;
         if (!KryptosHud.autoplay || !KryptosAutomationPanel.autoSmartDrill) return;
-        if (Vars.player == null || Vars.player.unit() == null) return;
+        if (Vars.player == null) return;
+
+        ensureHelper();
+        if (helperUnit == null) return;
 
         float now = Time.time;
         if (now - lastScanTime < SCAN_INTERVAL_TICKS) return;
@@ -534,7 +550,7 @@ public final class KryptosSmartDrill {
     }
 
     private static void executePlans(Seq<DrillPlan> plans, Building core) {
-        Unit unit = Vars.player.unit();
+        Unit unit = helperUnit;
         if (unit == null) return;
 
         for (DrillPlan plan : plans) {
