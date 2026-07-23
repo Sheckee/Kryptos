@@ -5,6 +5,7 @@ import arc.Events;
 import arc.util.Log;
 import kryptos.content.KryptosBlocks;
 import kryptos.content.KryptosItems;
+import kryptos.content.KryptosUnits;
 import kryptos.ui.KryptosUpdateChecker;
 import mindustry.Vars;
 import mindustry.game.EventType.ClientLoadEvent;
@@ -36,6 +37,7 @@ public class KryptosMod extends Mod {
 
         KryptosItems.load();
         KryptosBlocks.load();
+        KryptosUnits.load();
 
         Log.info("Kryptos content loaded.");
     }
