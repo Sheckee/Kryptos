@@ -75,6 +75,12 @@ public final class KryptosSmartDrill {
     private static void reset() {
         lastScanTime = -SCAN_INTERVAL_TICKS;
         helperUnit = null;
+        // Kills any drone left over from a previous session/save that our
+        // static reference above doesn't know about -- see
+        // KryptosBuilderUnits.killAll() for why this matters. Shared with
+        // KryptosAutoConveyor's reset(), so this may run twice per load,
+        // which is harmless (killing an already-dead unit is a no-op).
+        KryptosBuilderUnits.killAll();
         // Shared with KryptosAutoConveyor; see its reset() for why clearing
         // here too is safe.
         KryptosOreRegistry.reset();
@@ -676,4 +682,4 @@ public final class KryptosSmartDrill {
         final float f;
         Node(int idx, float f) { this.idx = idx; this.f = f; }
     }
-}
+            }
