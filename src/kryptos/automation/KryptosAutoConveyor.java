@@ -58,6 +58,11 @@ public final class KryptosAutoConveyor {
     private static float lastScanTime = -SCAN_INTERVAL_TICKS;
     private static final IntIntMap depositCoreDist = new IntIntMap();
 
+    // The drone that actually flies out and builds -- spawned the moment
+    // Auto Conveyor is switched on (see requestImmediateScan()), reused for
+    // as long as it's alive. See KryptosBuilderUnits.getOrSpawn().
+    private static Unit helperUnit;
+
     private KryptosAutoConveyor() {}
 
     public static void init() {
@@ -67,6 +72,12 @@ public final class KryptosAutoConveyor {
 
     public static void requestImmediateScan() {
         lastScanTime = -SCAN_INTERVAL_TICKS - 1f;
+        ensureHelper();
+    }
+
+    private static void ensureHelper() {
+        if (Vars.player == null) return;
+        helperUnit = KryptosBuilderUnits.getOrSpawn(helperUnit, Vars.player.team());
     }
 
     public static int servedCount() {
@@ -77,6 +88,7 @@ public final class KryptosAutoConveyor {
         visited = null;
         depositCoreDist.clear();
         lastScanTime = -SCAN_INTERVAL_TICKS;
+        helperUnit = null;
         // Shared with KryptosSmartDrill; both modules reset on WorldLoadEvent
         // so this may run twice per load, which is harmless (IntSet.clear()
         // is idempotent).
@@ -86,7 +98,10 @@ public final class KryptosAutoConveyor {
     private static void update() {
         if (!Vars.state.isGame()) return;
         if (!KryptosHud.autoplay || !KryptosAutomationPanel.autoConveyor) return;
-        if (Vars.player == null || Vars.player.unit() == null) return;
+        if (Vars.player == null) return;
+
+        ensureHelper();
+        if (helperUnit == null) return;
 
         float now = Time.time;
         if (now - lastScanTime < SCAN_INTERVAL_TICKS) return;
@@ -493,7 +508,7 @@ public final class KryptosAutoConveyor {
     private static void serveDeposit(IntSeq cluster, int key, DrillPlacement placement, IntSeq path, Building core, OreBlock ore) {
         KryptosOreRegistry.claim(key);
 
-        Unit unit = Vars.player.unit();
+        Unit unit = helperUnit;
         if (unit == null) return;
 
         Seq<BuildPlan> plans = new Seq<>();
