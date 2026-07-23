@@ -89,6 +89,12 @@ public final class KryptosAutoConveyor {
         depositCoreDist.clear();
         lastScanTime = -SCAN_INTERVAL_TICKS;
         helperUnit = null;
+        // Kills any drone left over from a previous session/save that our
+        // static reference above doesn't know about -- see
+        // KryptosBuilderUnits.killAll() for why this matters. Shared with
+        // KryptosSmartDrill's reset(), so this may run twice per load, which
+        // is harmless (killing an already-dead unit is a no-op).
+        KryptosBuilderUnits.killAll();
         // Shared with KryptosSmartDrill; both modules reset on WorldLoadEvent
         // so this may run twice per load, which is harmless (IntSet.clear()
         // is idempotent).
@@ -602,4 +608,4 @@ public final class KryptosAutoConveyor {
         final float f;
         Node(int idx, float f) { this.idx = idx; this.f = f; }
     }
-}
+                }
