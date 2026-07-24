@@ -13,6 +13,8 @@ import kryptos.ui.KryptosHud;
 import mindustry.Vars;
 import mindustry.content.Blocks;
 import mindustry.content.Items;
+import kryptos.content.KryptosBlocks;
+import kryptos.content.KryptosItems;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.Trigger;
 import mindustry.game.EventType.WorldLoadEvent;
@@ -283,6 +285,12 @@ public final class KryptosAutoConveyor {
     }
 
     private static Drill findBestDrillForOre(OreBlock ore) {
+        Item item = getItemFromOre(ore);
+        if (item != null) {
+            Drill existing = KryptosFieldTier.matchExistingDrill(Vars.player.team(), item);
+            if (existing != null) return existing;
+        }
+
         Seq<Block> blocks = Vars.content.blocks();
         Drill best = null;
         int bestTier = -1;
@@ -300,6 +308,17 @@ public final class KryptosAutoConveyor {
         }
 
         return best != null ? best : findAnyDrill();
+    }
+
+    private static Item getItemFromOre(OreBlock ore) {
+        if (ore == Blocks.oreCopper) return Items.copper;
+        if (ore == Blocks.oreLead) return Items.lead;
+        if (ore == Blocks.oreCoal) return Items.coal;
+        if (ore == Blocks.oreTitanium) return Items.titanium;
+        if (ore == Blocks.oreThorium) return Items.thorium;
+        if (ore == Blocks.oreScrap) return Items.scrap;
+        if (ore == KryptosBlocks.oreCustom) return KryptosItems.customOre;
+        return null;
     }
 
     private static Drill findAnyDrill() {
@@ -555,6 +574,9 @@ public final class KryptosAutoConveyor {
         Block existing = tile.block();
         if (existing instanceof Conveyor) return existing;
 
+        Block fieldMatch = KryptosFieldTier.matchExistingConveyor(Vars.player.team());
+        if (fieldMatch != null) return fieldMatch;
+
         if (index == pathLength - 1) {
             return Blocks.conveyor;
         }
@@ -608,4 +630,4 @@ public final class KryptosAutoConveyor {
         final float f;
         Node(int idx, float f) { this.idx = idx; this.f = f; }
     }
-        }
+}
