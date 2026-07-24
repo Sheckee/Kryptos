@@ -63,8 +63,10 @@ public final class KryptosSmartDrill {
     }
 
     public static void requestImmediateScan() {
+        Log.info("[Kryptos] SmartDrill: requestImmediateScan() called.");
         lastScanTime = -SCAN_INTERVAL_TICKS - 1f;
         ensureHelper();
+        Log.info("[Kryptos] SmartDrill: helperUnit after ensureHelper() = @", helperUnit);
     }
 
     private static void ensureHelper() {
@@ -86,8 +88,21 @@ public final class KryptosSmartDrill {
         KryptosOreRegistry.reset();
     }
 
+    private static float lastGateLogTime = -1e9f;
+
     private static void update() {
         if (!Vars.state.isGame()) return;
+
+        // Diagnostic: prints the live state of both gate flags every ~5s
+        // regardless of whether the toggle UI is actually wired up right.
+        // If this never shows autoSmartDrill=true after toggling it on in
+        // the panel, the break is in the UI callback, not in this class.
+        if (Time.time - lastGateLogTime > 300f) {
+            lastGateLogTime = Time.time;
+            Log.info("[Kryptos] SmartDrill gate check: autoplay=@ autoSmartDrill=@ helperUnit=@",
+                KryptosHud.autoplay, KryptosAutomationPanel.autoSmartDrill, helperUnit);
+        }
+
         if (!KryptosHud.autoplay || !KryptosAutomationPanel.autoSmartDrill) return;
         if (Vars.player == null) return;
 
