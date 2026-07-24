@@ -10,6 +10,7 @@ import arc.scene.event.Touchable;
 import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.Label;
 import arc.scene.ui.layout.Table;
+import arc.util.Log;
 import kryptos.automation.KryptosAutoConveyor;
 import kryptos.automation.KryptosLogicDeploy;
 import kryptos.automation.KryptosSmartDrill;
@@ -60,6 +61,7 @@ public class KryptosAutomationPanel {
         KryptosHud.addToggle(content, new TextureRegionDrawable(Blocks.conveyor.uiIcon),
                 "Auto Conveyor", () -> autoConveyor, b -> {
                     autoConveyor = b;
+                    Log.info("[Kryptos] Auto Conveyor toggle -> @", b);
                     if (b) KryptosAutoConveyor.requestImmediateScan();
                 });
         content.row();
@@ -67,6 +69,7 @@ public class KryptosAutomationPanel {
         KryptosHud.addToggle(content, new TextureRegionDrawable(Items.titanium.uiIcon),
                 "Smart Drill", () -> autoSmartDrill, b -> {
                     autoSmartDrill = b;
+                    Log.info("[Kryptos] Smart Drill toggle -> @", b);
                     if (b) KryptosSmartDrill.requestImmediateScan();
                 });
         content.row();
@@ -159,4 +162,3 @@ public class KryptosAutomationPanel {
     }
 }
 
-            
