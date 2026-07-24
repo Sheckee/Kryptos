@@ -297,6 +297,9 @@ public final class KryptosSmartDrill {
     }
 
     private static Drill findBestDrillForItem(Item item) {
+        Drill existing = KryptosFieldTier.matchExistingDrill(Vars.player.team(), item);
+        if (existing != null) return existing;
+
         Seq<Block> blocks = Vars.content.blocks();
         Drill best = null;
         int bestTier = -1;
@@ -596,6 +599,9 @@ public final class KryptosSmartDrill {
         Block existing = tile.block();
         if (existing instanceof Conveyor) return existing;
 
+        Block fieldMatch = KryptosFieldTier.matchExistingConveyor(Vars.player.team());
+        if (fieldMatch != null) return fieldMatch;
+
         if (index == pathLength - 1) {
             return Blocks.conveyor;
         }
@@ -682,4 +688,4 @@ public final class KryptosSmartDrill {
         final float f;
         Node(int idx, float f) { this.idx = idx; this.f = f; }
     }
-            }
+}
