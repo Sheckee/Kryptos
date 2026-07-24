@@ -211,9 +211,18 @@ public final class KryptosSmartDrill {
             }
         }
 
+        // Runs regardless of whether there are new deposits to build --
+        // this handles drills that already exist on the field, which is a
+        // completely separate job from claiming new deposits below. Before
+        // this fix, an empty `plans` (e.g. because AutoConveyor already
+        // claimed every nearby deposit through the shared
+        // KryptosOreRegistry) caused an early return that skipped this
+        // entirely -- the module would then have nothing to do at all and
+        // just sit idle, which is the "Smart Drill drone isn't moving" bug.
+        manageExistingDrills(core, depositsByItem);
+
         if (plans.isEmpty()) return;
 
-        manageExistingDrills(core, depositsByItem);
         executePlans(plans, core);
     }
 
