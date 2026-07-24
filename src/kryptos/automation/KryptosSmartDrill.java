@@ -3,6 +3,7 @@ package kryptos.automation;
 import arc.Events;
 import arc.math.geom.Point2;
 import arc.struct.IntSeq;
+import arc.struct.IntSet;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Log;
@@ -40,10 +41,11 @@ import static mindustry.Vars.world;
 public final class KryptosSmartDrill {
 
     private static final float SCAN_INTERVAL_TICKS = 60f * 5f;
-    private static final int MAX_DRILLS_PER_CYCLE = 4;
-    private static final int MAX_PATH_ATTEMPTS_PER_CYCLE = 8;
+    private static final int MAX_DRILLS_PER_CYCLE = 8;
+    private static final int MAX_PATH_ATTEMPTS_PER_CYCLE = 12;
     private static final int MAX_PATH_SEARCH_TILES = 15000;
-    private static final int MAX_PATH_LENGTH = 180;
+    private static final int MAX_PATH_LENGTH = 220;
+    private static final int MAX_DRILLS_PER_DEPOSIT = 4;
 
     private static final int[] DX4 = {1, 0, -1, 0};
     private static final int[] DY4 = {0, 1, 0, -1};
@@ -206,9 +208,11 @@ public final class KryptosSmartDrill {
                 attemptsThisCycle++;
 
                 OreDeposit dep = deposits.get(i);
-                KryptosOreRegistry.claim(dep.key);
-                DrillPlan plan = createDrillPlan(dep, core);
-                if (plan != null) plans.add(plan);
+                Seq<DrillPlan> depositPlans = createDrillPlans(dep, core);
+                if (!depositPlans.isEmpty()) {
+                    KryptosOreRegistry.claim(dep.key);
+                    plans.addAll(depositPlans);
+                }
             }
         }
 
@@ -270,18 +274,48 @@ public final class KryptosSmartDrill {
         return min;
     }
 
-    private static DrillPlan createDrillPlan(OreDeposit deposit, Building core) {
+    private static Seq<DrillPlan> createDrillPlans(OreDeposit deposit, Building core) {
+        Seq<DrillPlan> plans = new Seq<>();
         int coreX = core.tile.x;
         int coreY = core.tile.y;
 
         Drill bestDrill = findBestDrillForItem(deposit.item);
-        if (bestDrill == null) return null;
+        if (bestDrill == null) return plans;
 
-        int drillSize = bestDrill.size;
+        IntSet uncovered = new IntSet();
+        for (int i = 0; i < deposit.cluster.size; i++) {
+            uncovered.add(deposit.cluster.items[i]);
+        }
+
+        IntSet reserved = new IntSet();
+        while (uncovered.size > 0 && plans.size < MAX_DRILLS_PER_DEPOSIT) {
+            DrillPlan best = findBestSingleDrillPlan(deposit, core, bestDrill, uncovered, reserved);
+            if (best == null || best.coveredOre <= 0) break;
+
+            plans.add(best);
+            reserveDrillFootprint(best.drillX, best.drillY, best.drillType.size, reserved);
+            for (int i = 0; i < best.coveredTiles.size; i++) {
+                uncovered.remove(best.coveredTiles.items[i]);
+            }
+        }
+
+        if (!plans.isEmpty()) {
+            int covered = deposit.cluster.size - uncovered.size;
+            Log.info("[Kryptos] SmartDrill: planned @ drill(s) for @ deposit, covering @/@ ore tiles.",
+                plans.size, deposit.item.name, covered, deposit.cluster.size);
+        }
+
+        return plans;
+    }
+
+    private static DrillPlan findBestSingleDrillPlan(OreDeposit deposit, Building core, Drill drill, IntSet uncovered, IntSet reserved) {
+        int coreX = core.tile.x;
+        int coreY = core.tile.y;
+        int drillSize = drill.size;
         int half = drillSize / 2;
 
-        int bestDrillX = -1, bestDrillY = -1, bestCovered = -1;
-        int bestConveyorX = -1, bestConveyorY = -1;
+        DrillPlan best = null;
+        float bestScore = Float.NEGATIVE_INFINITY;
 
         for (int i = 0; i < deposit.cluster.size; i++) {
             int cx = Point2.x(deposit.cluster.items[i]);
@@ -292,36 +326,33 @@ public final class KryptosSmartDrill {
                     int drillX = cx + dx;
                     int drillY = cy + dy;
 
-                    if (!canPlaceDrill(drillX, drillY, drillSize, deposit.item)) continue;
+                    if (!canPlaceDrill(drillX, drillY, drillSize, deposit.item, reserved)) continue;
 
-                    int covered = countOreCovered(drillX, drillY, drillSize, deposit.item);
-                    if (covered <= 0) continue;
+                    IntSeq coveredTiles = oreCoveredTiles(drillX, drillY, drillSize, deposit.item, uncovered);
+                    if (coveredTiles.size <= 0) continue;
 
                     Tile conveyorTile = findBestConveyorTile(drillX, drillY, drillSize, coreX, coreY);
                     if (conveyorTile == null) continue;
 
-                    if (covered > bestCovered) {
-                        bestCovered = covered;
-                        bestDrillX = drillX;
-                        bestDrillY = drillY;
-                        bestConveyorX = conveyorTile.x;
-                        bestConveyorY = conveyorTile.y;
+                    IntSeq path = findPathAStar(conveyorTile.x, conveyorTile.y, core);
+                    if (path == null || path.size == 0 || path.size > MAX_PATH_LENGTH) continue;
+
+                    int dist = Math.abs(drillX - coreX) + Math.abs(drillY - coreY);
+                    float score = coveredTiles.size * 1000f - path.size * 3f - dist;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        best = new DrillPlan(
+                            drillX, drillY,
+                            conveyorTile.x, conveyorTile.y,
+                            drill, deposit.item,
+                            path, deposit.key, coveredTiles
+                        );
                     }
                 }
             }
         }
 
-        if (bestDrillX == -1) return null;
-
-        IntSeq path = findPathAStar(bestConveyorX, bestConveyorY, core);
-        if (path == null || path.size == 0 || path.size > MAX_PATH_LENGTH) return null;
-
-        return new DrillPlan(
-            bestDrillX, bestDrillY,
-            bestConveyorX, bestConveyorY,
-            bestDrill, deposit.item,
-            path, deposit.key
-        );
+        return best;
     }
 
     private static Drill findBestDrillForItem(Item item) {
@@ -377,12 +408,15 @@ public final class KryptosSmartDrill {
         return null;
     }
 
-    private static boolean canPlaceDrill(int x, int y, int size, Item item) {
+    private static boolean canPlaceDrill(int x, int y, int size, Item item, IntSet reserved) {
         int half = size / 2;
         for (int dx = -half; dx <= half; dx++) {
             for (int dy = -half; dy <= half; dy++) {
-                Tile t = world.tile(x + dx, y + dy);
+                int tx = x + dx;
+                int ty = y + dy;
+                Tile t = world.tile(tx, ty);
                 if (t == null) return false;
+                if (reserved.contains(Point2.pack(tx, ty))) return false;
                 if (t.block() != Blocks.air && !(t.block() instanceof OreBlock)) return false;
                 if (t.floor().isLiquid) return false;
                 if (t.build != null && !(t.build.block instanceof OreBlock)) return false;
@@ -392,7 +426,11 @@ public final class KryptosSmartDrill {
     }
 
     private static int countOreCovered(int cx, int cy, int size, Item item) {
-        int count = 0;
+        return oreCoveredTiles(cx, cy, size, item, null).size;
+    }
+
+    private static IntSeq oreCoveredTiles(int cx, int cy, int size, Item item, IntSet onlyTheseTiles) {
+        IntSeq covered = new IntSeq();
         int half = size / 2;
         int range = half + 1;
 
@@ -408,12 +446,24 @@ public final class KryptosSmartDrill {
                     if (overlay instanceof OreBlock) {
                         OreBlock ore = (OreBlock) overlay;
                         Item oreItem = getItemFromOre(ore);
-                        if (oreItem == item) count++;
+                        if (oreItem == item) {
+                            int packed = Point2.pack(x, y);
+                            if (onlyTheseTiles == null || onlyTheseTiles.contains(packed)) covered.add(packed);
+                        }
                     }
                 }
             }
         }
-        return count;
+        return covered;
+    }
+
+    private static void reserveDrillFootprint(int x, int y, int size, IntSet reserved) {
+        int half = size / 2;
+        for (int dx = -half; dx <= half; dx++) {
+            for (int dy = -half; dy <= half; dy++) {
+                reserved.add(Point2.pack(x + dx, y + dy));
+            }
+        }
     }
 
     private static Tile findBestConveyorTile(int drillX, int drillY, int drillSize, int coreX, int coreY) {
@@ -720,8 +770,9 @@ public final class KryptosSmartDrill {
         final IntSeq path;
         final int depositKey;
         final int coveredOre;
+        final IntSeq coveredTiles;
 
-        DrillPlan(int dx, int dy, int cx, int cy, Drill drill, Item item, IntSeq path, int key) {
+        DrillPlan(int dx, int dy, int cx, int cy, Drill drill, Item item, IntSeq path, int key, IntSeq coveredTiles) {
             this.drillX = dx;
             this.drillY = dy;
             this.conveyorX = cx;
@@ -730,7 +781,8 @@ public final class KryptosSmartDrill {
             this.item = item;
             this.path = path;
             this.depositKey = key;
-            this.coveredOre = countOreCovered(dx, dy, drill.size, item);
+            this.coveredTiles = coveredTiles;
+            this.coveredOre = coveredTiles.size;
         }
     }
 
