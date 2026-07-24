@@ -9,11 +9,10 @@ import mindustry.gen.Unit;
 
 /**
  * Spawns and hands out the shared Kryptos builder drone for
- * {@link KryptosAutoConveyor} and {@link KryptosSmartDrill}. Each module owns
- * exactly one drone: spawned the moment its toggle is switched on, reused for
- * as long as it's alive, and quietly replaced if it dies. Both modules keep
- * their own separate drone (they call this independently), so turning both
- * toggles on gives you 2 drones total, matching one-drone-per-toggle.
+ * {@link KryptosAutoConveyor} and {@link KryptosSmartDrill}. Both modules reuse
+ * the same live helper when possible, so enabling both toggles does not leave
+ * a second helper hovering idle with no work while the first one drains the
+ * actual build queue.
  *
  * Automation only -- the drone is always locked to {@link KryptosDroneAI}
  * and is never player-controllable (see {@code playerControllable = false}
@@ -26,9 +25,10 @@ public final class KryptosBuilderUnits {
     private KryptosBuilderUnits() {}
 
     /**
-     * Returns {@code current} if it's still alive and on the right team,
-     * otherwise spawns a fresh drone near the core and returns that instead.
-     * Returns null only if there's no core to spawn next to.
+     * Returns {@code current} if it's still alive and on the right team, then
+     * falls back to any other live Kryptos helper on that team before spawning
+     * a fresh drone near the core. Returns null only if there's no core to
+     * spawn next to.
      */
     public static Unit getOrSpawn(Unit current, Team team) {
         if (current != null && current.isValid() && current.team == team) {
@@ -42,6 +42,14 @@ public final class KryptosBuilderUnits {
             return current;
         }
 
+        Unit existing = findExisting(team);
+        if (existing != null) {
+            if (!(existing.controller() instanceof KryptosDroneAI)) {
+                existing.controller(new KryptosDroneAI());
+            }
+            return existing;
+        }
+
         Building core = team.core();
         if (core == null) return null;
 
@@ -53,6 +61,16 @@ public final class KryptosBuilderUnits {
         unit.controller(new KryptosDroneAI());
         unit.add();
         return unit;
+    }
+
+    private static Unit findExisting(Team team) {
+        final Unit[] found = {null};
+        Groups.unit.each(u -> {
+            if (found[0] == null && u.type == KryptosUnits.builder && u.team == team && u.isValid()) {
+                found[0] = u;
+            }
+        });
+        return found[0];
     }
 
     /**
