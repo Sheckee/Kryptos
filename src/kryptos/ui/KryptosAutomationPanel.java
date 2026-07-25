@@ -86,7 +86,7 @@ public class KryptosAutomationPanel {
         statusLabel = new Label("");
         statusLabel.setColor(STATUS_COLOR);
         statusLabel.update(() -> statusLabel.setText(
-            "Defense: " + KryptosDefenseBuilder.state()
+            "Defense: building"
             + " | Drill [" + KryptosSmartDrill.state() + "]"
         ));
         content.add(statusLabel).left().padTop(4f);

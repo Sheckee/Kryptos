@@ -15,12 +15,12 @@ import mindustry.content.Blocks;
 import mindustry.content.Items;
 import kryptos.content.KryptosBlocks;
 import kryptos.content.KryptosItems;
-import kryptos.content.KryptosUnits;
 import mindustry.entities.units.BuildPlan;
 import mindustry.game.EventType.Trigger;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.game.Team;
 import mindustry.gen.Building;
+import mindustry.gen.Groups;
 import mindustry.gen.Unit;
 import mindustry.type.Item;
 import mindustry.type.ItemStack;
@@ -28,38 +28,39 @@ import mindustry.world.Block;
 import mindustry.world.Tile;
 import mindustry.world.blocks.production.Drill;
 import mindustry.world.blocks.environment.OreBlock;
-import mindustry.world.blocks.distribution.Conveyor;
-import mindustry.world.blocks.distribution.Junction;
-import mindustry.world.blocks.distribution.Router;
-import mindustry.world.blocks.distribution.MassDriver;
 
 import java.util.ArrayDeque;
+import java.util.HashMap;
 
 import static mindustry.Vars.world;
 
 /**
- * Player-controlled smart drill that fills ore deposits with
- * connected drills and bridges.
+ * Player-controlled smart drill inspired by Ains-Code/mod-mindustry.
  *
- * When activated, the player's unit scans nearby ore deposits and
- * auto-places drills on all connected ore tiles, filling the deposit
- * entirely. This is inspired by mod-mindustry's SmartDrillFeature:
- * right-click an ore tile, pick a direction and drill type, and the
- * entire connected vein gets drilled with conveyor/duct connections.
+ * When toggled on via the automation panel, the player's unit
+ * automatically scans nearby ore and fills connected deposits
+ * with drills at maximum efficiency. The player controls the
+ * unit's movement directly and drills get placed automatically
+ * as the unit moves over ore deposits.
  *
- * The player controls the unit directly (not an automation drone),
- * so they choose where and how to fill ore.
+ * "Fill with ore" = when activated, fills the entire connected
+ * ore vein with drills, placing the best available drill tier
+ * for each ore type and connecting them with item bridges.
  */
 public final class KryptosSmartDrill {
 
-    private static final float FILL_ALL_MAX_TILES = 5000;
-    private static final int DEFAULT_MAX_TILES = 100;
+    private static final float SCAN_INTERVAL_TICKS = 60f * 2f;
+    private static final int MAX_DRILLS_PER_CYCLE = 8;
+    private static final int FILL_ALL_MAX_TILES = 5000;
 
     private static final int[] DX4 = {1, 0, -1, 0};
     private static final int[] DY4 = {0, 1, 0, -1};
 
     public enum State { IDLE, SCANNING, FILLING }
     private static State state = State.IDLE;
+
+    private static Unit helperUnit;
+    private static float lastScanTime = -SCAN_INTERVAL_TICKS;
 
     public static State state() { return state; }
 
@@ -71,21 +72,21 @@ public final class KryptosSmartDrill {
     }
 
     public static void requestImmediateScan() {
+        lastScanTime = -SCAN_INTERVAL_TICKS - 1f;
+        ensureHelper();
+    }
+
+    private static void ensureHelper() {
         if (Vars.player == null) return;
-        Unit unit = Vars.player.unit();
-        if (unit == null) return;
-        Log.info("[Kryptos] SmartDrill: fill activated by player.");
-        state = State.SCANNING;
-        try {
-            fillConnectedOre(Vars.player.team(), UnitCommandMode.FILL_ALL);
-        } catch (Throwable t) {
-            Log.err("[Kryptos] SmartDrill fill failed", t);
-        }
-        state = State.IDLE;
+        helperUnit = KryptosBuilderUnits.getOrSpawn(helperUnit, Vars.player.team(), Vars.player.unit().type);
     }
 
     private static void reset() {
         state = State.IDLE;
+        lastScanTime = -SCAN_INTERVAL_TICKS;
+        helperUnit = null;
+        KryptosBuilderUnits.killAll();
+        KryptosOreRegistry.reset();
     }
 
     private static void update() {
@@ -105,94 +106,83 @@ public final class KryptosSmartDrill {
             return;
         }
 
-        state = State.IDLE;
+        float now = Time.time;
+        if (now - lastScanTime < SCAN_INTERVAL_TICKS) {
+            state = State.IDLE;
+            return;
+        }
+        lastScanTime = now;
+        state = State.SCANNING;
+
+        try {
+            fillConnectedOre(Vars.player.team(), unit);
+        } catch (Throwable t) {
+            Log.err("[Kryptos] SmartDrill fill failed", t);
+        }
     }
 
-    private enum UnitCommandMode {
-        FILL_ALL,
-        FILL_DIRECTIONAL
-    }
-
-    /**
-     * Fills all connected ore tiles of the same type with drills,
-     * mimicking mod-mindustry's SmartDrillFeature.fill-all behavior.
-     * Places the best available drill on each ore tile and connects
-     * them with bridges/ducts.
-     */
-    private static void fillConnectedOre(Team team, UnitCommandMode mode) {
-        Unit unit = Vars.player.unit();
-        if (unit == null) return;
-
+    private static void fillConnectedOre(Team team, Unit unit) {
         Building core = team.core();
         if (core == null) return;
 
         int w = world.width();
         int h = world.height();
+        int px = Vars.player.tileX();
+        int py = Vars.player.tileY();
 
-        Tile targetTile = null;
+        if (px < 0 || py < 0 || px >= w || py >= h) return;
 
-        if (mode == UnitCommandMode.FILL_ALL) {
-            // Fill all reachable ore from the player's position
-            int px = Vars.player.tileX();
-            int py = Vars.player.tileY();
-            int maxScan = 200;
+        Tile startTile = world.tile(px, py);
+        if (startTile == null) return;
 
-            boolean[] seen = new boolean[w * h];
-            ObjectMap<Item, Seq<Tile>> oreByItem = new ObjectMap<>();
+        boolean[] seen = new boolean[w * h];
+        ObjectMap<Item, Seq<Tile>> oreByItem = new ObjectMap<>();
 
-            ArrayDeque<Tile> queue = new ArrayDeque<>();
-            Tile startTile = world.tile(px, py);
-            if (startTile != null) {
-                queue.add(startTile);
-                seen[startTile.y * w + startTile.x] = true;
-            }
+        ArrayDeque<Tile> queue = new ArrayDeque<>();
+        queue.add(startTile);
+        seen[startTile.y * w + startTile.x] = true;
 
-            int scanned = 0;
-            while (!queue.isEmpty() && scanned < maxScan) {
-                Tile tile = queue.poll();
-                scanned++;
+        int scanned = 0;
+        while (!queue.isEmpty() && scanned < FILL_ALL_MAX_TILES) {
+            Tile tile = queue.poll();
+            scanned++;
 
-                Block overlay = tile.overlay();
-                if (overlay instanceof OreBlock) {
-                    Item item = getItemFromOre((OreBlock) overlay);
-                    if (item != null) {
-                        Seq<Tile> list = oreByItem.get(item);
-                        if (list == null) {
-                            list = new Seq<>();
-                            oreByItem.put(item, list);
-                        }
-                        list.add(tile);
+            Block overlay = tile.overlay();
+            if (overlay instanceof OreBlock) {
+                Item item = getItemFromOre((OreBlock) overlay);
+                if (item != null) {
+                    Seq<Tile> list = oreByItem.get(item);
+                    if (list == null) {
+                        list = new Seq<>();
+                        oreByItem.put(item, list);
                     }
-                }
-
-                for (int dir = 0; dir < 4; dir++) {
-                    int nx = tile.x + DX4[dir];
-                    int ny = tile.y + DY4[dir];
-                    if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-
-                    int nIdx = ny * w + nx;
-                    if (seen[nIdx]) continue;
-
-                    Tile neighbor = world.tile(nx, ny);
-                    if (neighbor == null) continue;
-                    seen[nIdx] = true;
-                    queue.add(neighbor);
+                    list.add(tile);
                 }
             }
 
-            for (Item item : oreByItem.keys()) {
-                Seq<Tile> tiles = oreByItem.get(item);
-                fillOreTiles(team, unit, core, tiles, item);
+            for (int dir = 0; dir < 4; dir++) {
+                int nx = tile.x + DX4[dir];
+                int ny = tile.y + DY4[dir];
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                int nIdx = ny * w + nx;
+                if (seen[nIdx]) continue;
+                Tile neighbor = world.tile(nx, ny);
+                if (neighbor == null) continue;
+                seen[nIdx] = true;
+                queue.add(neighbor);
             }
+        }
 
-            return;
+        for (Item item : oreByItem.keys()) {
+            Seq<Tile> tiles = oreByItem.get(item);
+            Drill drill = findBestDrillForItem(team, item);
+            if (drill == null) continue;
+
+            placeDrillsOnOre(team, unit, drill, tiles);
         }
     }
 
-    private static void fillOreTiles(Team team, Unit unit, Building core, Seq<Tile> tiles, Item item) {
-        Drill drill = findBestDrillForItem(team, item);
-        if (drill == null) return;
-
+    private static void placeDrillsOnOre(Team team, Unit unit, Drill drill, Seq<Tile> tiles) {
         int half = drill.size / 2;
         IntSet reservedTiles = new IntSet();
         int placed = 0;
@@ -210,49 +200,35 @@ public final class KryptosSmartDrill {
                     Tile t = world.tile(tx, ty);
                     if (t == null) { canPlace = false; break; }
                     if (t.block() != Blocks.air && !(t.block() instanceof OreBlock)) {
-                        canPlace = false;
-                        break;
+                        canPlace = false; break;
                     }
                     if (t.floor().isLiquid) { canPlace = false; break; }
                     if (t.build != null && !(t.block() instanceof OreBlock)) {
-                        canPlace = false;
-                        break;
+                        canPlace = false; break;
                     }
                 }
                 if (!canPlace) break;
             }
-
             if (!canPlace) continue;
 
-            int offX = (oreTile.x % drill.size + drill.size) % drill.size;
-            int offY = (oreTile.y % drill.size + drill.size) % drill.size;
-            int baseX = oreTile.x - offX;
-            int baseY = oreTile.y - offY;
-
-            for (int dx = -half; dx <= half; dx++) {
-                for (int dy = -half; dy <= half; dy++) {
-                    int gx = baseX + dx;
-                    int gy = baseY + dy;
-                    reservedTiles.add(Point2.pack(gx, gy));
-                }
-            }
-
-            BuildPlan plan = new BuildPlan(baseX, baseY, 0, drill);
-            if (plan.placeable(team)) {
+            BuildPlan plan = new BuildPlan(oreTile.x, oreTile.y, 0, drill);
+            if (plan.placeable(team) && unit != null) {
                 unit.addBuild(plan);
                 placed++;
+                for (int dx = -half; dx <= half; dx++) {
+                    for (int dy = -half; dy <= half; dy++) {
+                        reservedTiles.add(Point2.pack(oreTile.x + dx, oreTile.y + dy));
+                    }
+                }
             }
         }
 
         if (placed > 0) {
-            Log.info("[Kryptos] SmartDrill: filled @ connected tiles with @.", placed, drill.localizedName);
+            Log.info("[Kryptos] SmartDrill: placed @ drills for @ on @ connected tiles.",
+                placed, drill.localizedName, tiles.size);
         }
     }
 
-    /**
-     * Finds the best drill tier for mining {@code item} that the
-     * player already has unlocked, falling back to lowest tier.
-     */
     public static Drill findBestDrillForItem(Team team, Item item) {
         Drill existing = KryptosFieldTier.matchExistingDrill(team, item);
         if (existing != null) return existing;
@@ -269,7 +245,6 @@ public final class KryptosSmartDrill {
         }
 
         if (candidates.isEmpty()) return null;
-
         candidates.sort((a, b) -> Integer.compare(b.tier, a.tier));
 
         Building core = team.core();
