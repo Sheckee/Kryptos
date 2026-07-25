@@ -69,7 +69,7 @@ public class KryptosAutomationPanel {
                 "Smart Drill", () -> autoSmartDrill, b -> {
                     autoSmartDrill = b;
                     Log.info("[Kryptos] Smart Drill toggle -> @", b);
-                    if (b) KryptosSmartDrill.requestFill();
+                    KryptosSmartDrill.setEnabled(b);
                 });
         content.row();
 
