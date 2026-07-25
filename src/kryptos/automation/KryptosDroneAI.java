@@ -8,22 +8,13 @@ import mindustry.world.blocks.ConstructBlock.ConstructBuild;
 /**
  * Controller for the Kryptos helper drone (see {@link KryptosBuilderUnits}).
  *
- * Stock Mindustry builder units run {@code BuilderAI}, which -- whenever it
- * has nothing queued -- helps itself to the team's shared block-plan queue
- * and even copies whatever build plan the nearest other builder unit is
- * working on. That means the drone could end up constructing things nobody
- * told SmartDrill/AutoConveyor to build.
+ * Strips all scavenging behavior: the drone does ONLY what's
+ * explicitly queued on it via {@code unit.addBuild(...)} by
+ * KryptosDefenseBuilder or KryptosSmartDrill. It never scavenges
+ * the shared plan queue and never follows/mimics another builder.
  *
- * This controller strips all of that out: the drone does ONLY what's
- * explicitly queued on it via {@code unit.addBuild(...)} by KryptosSmartDrill
- * or KryptosAutoConveyor. It never scavenges the shared plan queue and never
- * follows/mimics another builder.
- *
- * Idle behavior (nothing queued right now): rather than freezing wherever
- * its last task happened to end -- which looks broken, floating motionless
- * over some random ore tile -- it flies back and hovers near the core.
- * That's the "logical" resting spot: staged, out of the way, and ready to
- * be dispatched the moment the next scan cycle queues something.
+ * Idle behavior: rather than freezing wherever its last task
+ * finished, it flies back and hovers near the core.
  */
 public class KryptosDroneAI extends AIController {
 

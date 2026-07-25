@@ -5,7 +5,7 @@ import arc.struct.IntSet;
 /**
  * Shared claimed-ore-cluster registry.
  *
- * KryptosAutoConveyor and KryptosSmartDrill each scan the map for ore
+ * KryptosDefenseBuilder and KryptosSmartDrill each scan the map for ore
  * clusters and queue drill + belt build plans independently. Before this
  * existed, they kept separate "already served" sets, so nothing stopped
  * both modules from targeting the same deposit in the same window and

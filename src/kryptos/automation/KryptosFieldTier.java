@@ -13,7 +13,7 @@ import mindustry.world.blocks.distribution.Conveyor;
 import mindustry.world.blocks.production.Drill;
 
 /**
- * Both KryptosSmartDrill and KryptosAutoConveyor used to always pick the
+ * KryptosSmartDrill and KryptosDefenseBuilder used to always pick the
  * "best" (highest-tier) unlocked drill/conveyor for every new build. That
  * meant automation could silently place a Titanium Conveyor or a
  * higher-tier drill next to a field that's otherwise all Mechanical

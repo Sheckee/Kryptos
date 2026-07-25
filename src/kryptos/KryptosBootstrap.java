@@ -1,7 +1,7 @@
 package kryptos;
 
 import arc.util.Log;
-import kryptos.automation.KryptosAutoConveyor;
+import kryptos.automation.KryptosDefenseBuilder;
 import kryptos.automation.KryptosLogicDeploy;
 import kryptos.automation.KryptosSmartDrill;
 import kryptos.world.KryptosOreGenerator;
@@ -52,7 +52,7 @@ public final class KryptosBootstrap {
         // ===========================
 
         run("KryptosOreGenerator.init", KryptosOreGenerator::init);
-        run("KryptosAutoConveyor.init", KryptosAutoConveyor::init);
+        run("KryptosDefenseBuilder.init", KryptosDefenseBuilder::init);
         run("KryptosSmartDrill.init", KryptosSmartDrill::init);
         run("KryptosLogicDeploy.init", KryptosLogicDeploy::init);
 

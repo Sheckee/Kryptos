@@ -5,22 +5,20 @@ import mindustry.type.UnitType;
 
 /**
  * Content-side unit definitions for Kryptos. Two "builder drone" types --
- * {@link #builder} for {@link kryptos.automation.KryptosAutoConveyor} and
+ * {@link #defenseBuilder} for {@link kryptos.automation.KryptosDefenseBuilder} and
  * {@link #smartDrillBuilder} for {@link kryptos.automation.KryptosSmartDrill}
  * -- each module spawns (and reuses) its own instead of forcing the player's
  * own unit to fly out and build things.
  *
  * They're functionally identical, split into two types only so the two
- * modules' drones are visually distinguishable in-game -- previously both
- * used the exact same placeholder sprite, so there was no way to tell which
- * drone belonged to which module just by looking at it.
+ * modules' drones are visually distinguishable in-game.
  */
 public class KryptosUnits {
-    public static UnitType builder;
+    public static UnitType defenseBuilder;
     public static UnitType smartDrillBuilder;
 
     public static void load() {
-        builder = new UnitType("kryptos-builder") {{
+        defenseBuilder = new UnitType("kryptos-defense-builder") {{
             applyBuilderDroneStats(this);
         }};
 
@@ -42,7 +40,7 @@ public class KryptosUnits {
         type.controlSelectGlobal = false;
         // Automation only -- the drone can never be selected or
         // commanded by the player via the RTS Command panel, so it can
-        // only ever do what KryptosSmartDrill/KryptosAutoConveyor
+        // only ever do what KryptosDefenseBuilder/KryptosSmartDrill
         // explicitly queue on it (see KryptosDroneAI).
         type.playerControllable = false;
 

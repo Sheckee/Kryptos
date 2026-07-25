@@ -11,7 +11,7 @@ import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.Label;
 import arc.scene.ui.layout.Table;
 import arc.util.Log;
-import kryptos.automation.KryptosAutoConveyor;
+import kryptos.automation.KryptosDefenseBuilder;
 import kryptos.automation.KryptosLogicDeploy;
 import kryptos.automation.KryptosSmartDrill;
 import mindustry.content.Blocks;
@@ -24,9 +24,8 @@ import static mindustry.Vars.ui;
  * The "many different automations" panel requested alongside Autoplay --
  * only visible while {@link KryptosHud#autoplay} is on (see the wiring in
  * {@link KryptosHud#build()}). Each automation gets one toggle row here;
- * this module ships with Auto Conveyor ({@link KryptosAutoConveyor}) and
- * Smart Drill ({@link KryptosSmartDrill}), and is built so more can be
- * added the same way later.
+ * this module ships with Smart Drill ({@link KryptosSmartDrill}),
+ * and is built so more can be added the same way later.
  *
  * Follows the same draggable-panel-with-remembered-position pattern as
  * {@link KryptosTeamPanel}.
@@ -42,8 +41,8 @@ public class KryptosAutomationPanel {
     private static final float HANDLE_HEIGHT = 10f;
     private static final float DRAG_THRESHOLD = 6f;
 
-    /** Master switch for the auto-conveyor module; read by {@link KryptosAutoConveyor}. */
-    public static boolean autoConveyor = false;
+    /** Master switch for the defense builder module; read by {@link KryptosDefenseBuilder}. */
+    public static boolean autoDefenseBuilder = false;
 
     /** Master switch for the smart drill module; read by {@link KryptosSmartDrill}. */
     public static boolean autoSmartDrill = false;
@@ -58,11 +57,11 @@ public class KryptosAutomationPanel {
 
         content.add("Automation").color(LABEL_COLOR).left().padBottom(6f).row();
 
-        KryptosHud.addToggle(content, new TextureRegionDrawable(Blocks.conveyor.uiIcon),
-                "Auto Conveyor", () -> autoConveyor, b -> {
-                    autoConveyor = b;
-                    Log.info("[Kryptos] Auto Conveyor toggle -> @", b);
-                    if (b) KryptosAutoConveyor.requestImmediateScan();
+        KryptosHud.addToggle(content, new TextureRegionDrawable(Blocks.stoneWall.uiIcon),
+                "Defense Builder", () -> autoDefenseBuilder, b -> {
+                    autoDefenseBuilder = b;
+                    Log.info("[Kryptos] Defense Builder toggle -> @", b);
+                    if (b) KryptosDefenseBuilder.requestImmediateScan();
                 });
         content.row();
 
@@ -87,7 +86,7 @@ public class KryptosAutomationPanel {
         statusLabel = new Label("");
         statusLabel.setColor(STATUS_COLOR);
         statusLabel.update(() -> statusLabel.setText(
-            "Conveyor: " + KryptosAutoConveyor.servedCount() + " [" + KryptosAutoConveyor.state() + "]"
+            "Defense: " + KryptosDefenseBuilder.state()
             + " | Drill [" + KryptosSmartDrill.state() + "]"
         ));
         content.add(statusLabel).left().padTop(4f);

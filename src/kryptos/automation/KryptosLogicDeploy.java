@@ -20,7 +20,7 @@ import mindustry.world.blocks.logic.LogicBlock;
  * (paste code, drag links) -- see smart-drill.mlog / conveyor-maker.mlog
  * for the source of truth these strings are copied from.
  *
- * This is intentionally separate from KryptosAutoConveyor / KryptosSmartDrill:
+ * This is intentionally separate from KryptosDefenseBuilder / KryptosSmartDrill:
  * those are direct Java-side automation. This module instead builds real
  * in-world units + logic blocks that run the mlog VM, per the "gusto ilagay
  * mo yan sa java mismo" request -- the automation logic itself still lives
