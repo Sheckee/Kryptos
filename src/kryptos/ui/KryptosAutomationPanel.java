@@ -69,7 +69,7 @@ public class KryptosAutomationPanel {
                 "Smart Drill", () -> autoSmartDrill, b -> {
                     autoSmartDrill = b;
                     Log.info("[Kryptos] Smart Drill toggle -> @", b);
-                    if (b) KryptosSmartDrill.requestImmediateScan();
+                    if (b) KryptosSmartDrill.requestFill();
                 });
         content.row();
 
@@ -87,7 +87,7 @@ public class KryptosAutomationPanel {
         statusLabel.setColor(STATUS_COLOR);
         statusLabel.update(() -> statusLabel.setText(
             "Defense: building"
-            + " | Drill [" + KryptosSmartDrill.state() + "]"
+            + " | Smart Drill: active=" + autoSmartDrill
         ));
         content.add(statusLabel).left().padTop(4f);
 
