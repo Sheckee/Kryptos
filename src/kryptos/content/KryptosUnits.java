@@ -4,59 +4,52 @@ import mindustry.ai.UnitCommand;
 import mindustry.type.UnitType;
 
 /**
- * Content-side unit definitions for Kryptos. Two "builder drone" types --
- * {@link #defenseBuilder} for {@link kryptos.automation.KryptosDefenseBuilder} and
- * {@link #smartDrillBuilder} for {@link kryptos.automation.KryptosSmartDrill}
- * -- each module spawns (and reuses) its own instead of forcing the player's
- * own unit to fly out and build things.
+ * Content-side unit definitions for Kryptos.
  *
- * They're functionally identical, split into two types only so the two
- * modules' drones are visually distinguishable in-game.
+ * {@link #defender} is a combat AI unit that builds defensive walls and turrets
+ * outside the core's protected zone, repairs damaged structures, and fights enemies.
+ *
+ * {@link #smartDrillBuilder} is a builder drone for the Smart Drill module.
  */
 public class KryptosUnits {
-    public static UnitType defenseBuilder;
+    public static UnitType defender;
     public static UnitType smartDrillBuilder;
 
     public static void load() {
-        defenseBuilder = new UnitType("kryptos-defense-builder") {{
-            applyBuilderDroneStats(this);
+        defender = new UnitType("kryptos-defender") {{
+            range = 100f;
+            hitSize = 12f;
+            health = 500f;
+            speed = 1.8f;
+            accel = 0.15f;
+            drag = 0.08f;
+            rotateSpeed = 8f;
+            buildSpeed = 3f;
+            buildRange = 100f;
+            flying = false;
+            lowAltitude = false;
+            engineOffset = 6f;
+            engineSize = 2.0f;
+            defaultCommand = UnitCommand.rebuildCommand;
         }};
 
-        // Sprite: sprites/units/kryptos-smartdrill.png
         smartDrillBuilder = new UnitType("kryptos-smartdrill") {{
-            applyBuilderDroneStats(this);
+            defaultCommand = UnitCommand.rebuildCommand;
+            flying = true;
+            lowAltitude = true;
+            isEnemy = false;
+            controlSelectGlobal = false;
+            playerControllable = false;
+            hitSize = 9f;
+            health = 160f;
+            speed = 2.1f;
+            accel = 0.1f;
+            drag = 0.06f;
+            rotateSpeed = 12f;
+            engineOffset = 5.5f;
+            engineSize = 1.6f;
+            buildSpeed = 5.5f;
+            buildRange = 120f;
         }};
-    }
-
-    private static void applyBuilderDroneStats(UnitType type) {
-        // rebuildCommand -> BuilderAI: the drone will fly to whatever
-        // BuildPlan is queued on it (via unit.addBuild(...)) and
-        // construct it on its own, no player control needed.
-        type.defaultCommand = UnitCommand.rebuildCommand;
-
-        type.flying = true;
-        type.lowAltitude = true;
-        type.isEnemy = false;
-        type.controlSelectGlobal = false;
-        // Automation only -- the drone can never be selected or
-        // commanded by the player via the RTS Command panel, so it can
-        // only ever do what KryptosDefenseBuilder/KryptosSmartDrill
-        // explicitly queue on it (see KryptosDroneAI).
-        type.playerControllable = false;
-
-        type.hitSize = 9f;
-        type.health = 160f;
-
-        type.speed = 2.1f;
-        type.accel = 0.1f;
-        type.drag = 0.06f;
-        type.rotateSpeed = 12f;
-
-        type.engineOffset = 5.5f;
-        type.engineSize = 1.6f;
-
-        // Utility drone: no weapons, just building.
-        type.buildSpeed = 5.5f;
-        type.buildRange = 120f;
     }
 }

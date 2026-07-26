@@ -57,7 +57,7 @@ public final class KryptosBuilderUnits {
      */
     public static void killAll() {
         Groups.unit.each(u -> {
-            if (u.type == KryptosUnits.defenseBuilder || u.type == KryptosUnits.smartDrillBuilder) u.kill();
+            if (u.type == KryptosUnits.defender || u.type == KryptosUnits.smartDrillBuilder) u.kill();
         });
     }
 }

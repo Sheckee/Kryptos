@@ -11,7 +11,6 @@ import arc.scene.style.TextureRegionDrawable;
 import arc.scene.ui.Label;
 import arc.scene.ui.layout.Table;
 import arc.util.Log;
-import kryptos.automation.KryptosDefenseBuilder;
 import kryptos.automation.KryptosLogicDeploy;
 import kryptos.automation.KryptosSmartDrill;
 import mindustry.content.Blocks;
@@ -41,8 +40,8 @@ public class KryptosAutomationPanel {
     private static final float HANDLE_HEIGHT = 10f;
     private static final float DRAG_THRESHOLD = 6f;
 
-    /** Master switch for the defense builder module; read by {@link KryptosDefenseBuilder}. */
-    public static boolean autoDefenseBuilder = false;
+    /** Master switch for the defender module; read by {@link KryptosDefender}. */
+    public static boolean autoDefender = false;
 
     /** Master switch for the smart drill module; read by {@link KryptosSmartDrill}. */
     public static boolean autoSmartDrill = false;
@@ -58,10 +57,10 @@ public class KryptosAutomationPanel {
         content.add("Automation").color(LABEL_COLOR).left().padBottom(6f).row();
 
         KryptosHud.addToggle(content, new TextureRegionDrawable(Blocks.stoneWall.uiIcon),
-                "Defense Builder", () -> autoDefenseBuilder, b -> {
-                    autoDefenseBuilder = b;
-                    Log.info("[Kryptos] Defense Builder toggle -> @", b);
-                    if (b) KryptosDefenseBuilder.requestImmediateScan();
+                "Defender", () -> autoDefender, b -> {
+                    autoDefender = b;
+                    Log.info("[Kryptos] Defender toggle -> @", b);
+                    if (b) KryptosDefender.requestSpawn();
                 });
         content.row();
 
@@ -86,8 +85,8 @@ public class KryptosAutomationPanel {
         statusLabel = new Label("");
         statusLabel.setColor(STATUS_COLOR);
         statusLabel.update(() -> statusLabel.setText(
-            "Defense: building"
-            + " | Smart Drill: active=" + autoSmartDrill
+            "Defender: " + (autoDefender ? "active" : "off")
+            + " | Smart Drill: " + KryptosSmartDrill.isEnabled()
         ));
         content.add(statusLabel).left().padTop(4f);
 
